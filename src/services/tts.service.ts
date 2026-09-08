@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { EdgeTTS } from "@seepine/edge-tts";
 import { env } from "../config/env.js";
 
 export interface TTSOptions {
@@ -17,6 +18,7 @@ export interface TTSResponse {
   speed: string;
   provider: "edge-tts" | "browser-fallback" | "cached";
   ssml?: string;
+  subtitles?: Array<{ part: string; start: number; end: number }>;
 }
 
 function escapeXml(unsafe: string): string {
@@ -31,10 +33,15 @@ function escapeXml(unsafe: string): string {
 export async function synthesizeSpeech(options: TTSOptions): Promise<TTSResponse> {
   const language = options.language || "km";
   const speed = options.speed || "normal";
+  const gender = options.voiceGender || "female";
   const text = options.text.trim();
 
   // Create hash for file-based caching
-  const hash = crypto.createHash("md5").update(`${language}:${speed}:${text}`).digest("hex");
+  const hash = crypto
+    .createHash("md5")
+    .update(`${language}:${speed}:${gender}:${text}`)
+    .digest("hex");
+
   const uploadBasePath = path.isAbsolute(env.UPLOAD_DIR)
     ? env.UPLOAD_DIR
     : path.resolve(process.cwd(), env.UPLOAD_DIR);
@@ -47,11 +54,12 @@ export async function synthesizeSpeech(options: TTSOptions): Promise<TTSResponse
   const audioFilePath = path.join(audioDir, `${hash}.mp3`);
   const cleanUploadDir = env.UPLOAD_DIR.replace(/^(\.\/|\/)+/, "").replace(/\/+$/, "");
   const relativeAudioUrl = `/${cleanUploadDir}/audio/${hash}.mp3`;
+  const fullAudioUrl = `${env.API_URL.replace(/\/+$/, "")}${relativeAudioUrl}`;
 
   // Return cached file if already synthesized
-  if (fs.existsSync(audioFilePath)) {
+  if (fs.existsSync(audioFilePath) && fs.statSync(audioFilePath).size > 0) {
     return {
-      audioUrl: relativeAudioUrl,
+      audioUrl: fullAudioUrl,
       text,
       language,
       speed,
@@ -59,19 +67,50 @@ export async function synthesizeSpeech(options: TTSOptions): Promise<TTSResponse
     };
   }
 
-  // Generate SSML for speech synthesis
-  const rateMap = { slow: "0.85", normal: "1.0", fast: "1.2" };
-  const rate = rateMap[speed] || "1.0";
-  const voiceName = language === "km" ? "km-KH-SreymomNeural" : "en-US-JennyNeural";
+  // Voice selection (Microsoft Edge Neural Voices)
+  let voiceName = "km-KH-SreymomNeural";
+  if (language === "km") {
+    voiceName = gender === "male" ? "km-KH-PisethNeural" : "km-KH-SreymomNeural";
+  } else {
+    voiceName = gender === "male" ? "en-US-GuyNeural" : "en-US-JennyNeural";
+  }
 
-  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${
-    language === "km" ? "km-KH" : "en-US"
-  }"><voice name="${voiceName}"><prosody rate="${rate}">${escapeXml(text)}</prosody></voice></speak>`;
+  const rateMap: Record<string, string> = { slow: "-15%", normal: "+0%", fast: "+20%" };
+  const edgeRate = rateMap[speed] || "+0%";
+  const langTag = language === "km" ? "km-KH" : "en-US";
 
-  // In production, an external Khmer TTS API (e.g. Azure / Edge / Google Cloud / Local Khmer FastSpeech) can be called here.
-  // For standard environments, return the audio metadata + client-side Web Speech fallback format.
+  try {
+    const tts = new EdgeTTS({
+      voice: voiceName,
+      lang: langTag,
+      rate: edgeRate,
+    });
+
+    const result = await tts.call(text);
+    if (result && result.data && result.data.length > 0) {
+      fs.writeFileSync(audioFilePath, Buffer.from(result.data));
+      return {
+        audioUrl: fullAudioUrl,
+        text,
+        language,
+        speed,
+        provider: "edge-tts",
+        subtitles: result.subtitles || [],
+      };
+    }
+  } catch (err: any) {
+    console.warn(`[TTS Service] Edge TTS synthesis failed for voice ${voiceName}:`, err?.message || err);
+  }
+
+  // Fallback: Generate SSML for client-side speech synthesis
+  const ssmlRateMap = { slow: "0.85", normal: "1.0", fast: "1.2" };
+  const ssmlRate = ssmlRateMap[speed] || "1.0";
+  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${langTag}"><voice name="${voiceName}"><prosody rate="${ssmlRate}">${escapeXml(
+    text
+  )}</prosody></voice></speak>`;
+
   return {
-    audioUrl: undefined, // Browser Web Speech API or overlay player handles synthesis with SSML
+    audioUrl: undefined,
     ssml,
     text,
     language,
