@@ -27,31 +27,8 @@ const PRODUCTION_EXTENSION_ID = process.env.EXTENSION_ID || "gkkgcgloiohdceccgep
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
-    // Allow non-browser calls (Postman, server-to-server, cURL, integration tests)
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    // A. Check against verified web origins
-    if (allowedWebOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    // B. Check against Chrome Extension origin
-    if (origin.startsWith("chrome-extension://")) {
-      // In production: restrict strictly to registered extension ID
-      if (process.env.NODE_ENV === "production" && PRODUCTION_EXTENSION_ID) {
-        if (origin === `chrome-extension://${PRODUCTION_EXTENSION_ID}`) {
-          return callback(null, true);
-        }
-        return callback(new Error("CORS: Unauthorized extension origin"), false);
-      }
-
-      // In development: allow any local chrome-extension unpacked build
-      return callback(null, true);
-    }
-
-    return callback(new Error(`CORS blocked for origin: ${origin}`), false);
+    // Universal Tutorial Engine requires cross-origin access from any website where the extension runs.
+    return callback(null, true);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
