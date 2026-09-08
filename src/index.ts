@@ -47,6 +47,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 app.use("/api", routes);
+app.use("/api/v1", routes);
 
 // Serve static assets from UPLOAD_DIR (e.g. avatars, cached TTS audio)
 const uploadBasePath = path.isAbsolute(env.UPLOAD_DIR)

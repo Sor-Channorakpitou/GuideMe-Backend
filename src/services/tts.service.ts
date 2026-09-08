@@ -56,17 +56,6 @@ export async function synthesizeSpeech(options: TTSOptions): Promise<TTSResponse
   const relativeAudioUrl = `/${cleanUploadDir}/audio/${hash}.mp3`;
   const fullAudioUrl = `${env.API_URL.replace(/\/+$/, "")}${relativeAudioUrl}`;
 
-  // Return cached file if already synthesized
-  if (fs.existsSync(audioFilePath) && fs.statSync(audioFilePath).size > 0) {
-    return {
-      audioUrl: fullAudioUrl,
-      text,
-      language,
-      speed,
-      provider: "cached",
-    };
-  }
-
   // Voice selection (Microsoft Edge Neural Voices)
   let voiceName = "km-KH-SreymomNeural";
   if (language === "km") {
@@ -78,6 +67,25 @@ export async function synthesizeSpeech(options: TTSOptions): Promise<TTSResponse
   const rateMap: Record<string, string> = { slow: "-15%", normal: "+0%", fast: "+20%" };
   const edgeRate = rateMap[speed] || "+0%";
   const langTag = language === "km" ? "km-KH" : "en-US";
+
+  // SSML generation for client-side playback, phonetics, and speech synthesis markup
+  const ssmlRateMap = { slow: "0.85", normal: "1.0", fast: "1.2" };
+  const ssmlRate = ssmlRateMap[speed] || "1.0";
+  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${langTag}"><voice name="${voiceName}"><prosody rate="${ssmlRate}">${escapeXml(
+    text
+  )}</prosody></voice></speak>`;
+
+  // Return cached file if already synthesized
+  if (fs.existsSync(audioFilePath) && fs.statSync(audioFilePath).size > 0) {
+    return {
+      audioUrl: fullAudioUrl,
+      text,
+      language,
+      speed,
+      provider: "cached",
+      ssml,
+    };
+  }
 
   try {
     const tts = new EdgeTTS({
@@ -95,19 +103,13 @@ export async function synthesizeSpeech(options: TTSOptions): Promise<TTSResponse
         language,
         speed,
         provider: "edge-tts",
+        ssml,
         subtitles: result.subtitles || [],
       };
     }
   } catch (err: any) {
     console.warn(`[TTS Service] Edge TTS synthesis failed for voice ${voiceName}:`, err?.message || err);
   }
-
-  // Fallback: Generate SSML for client-side speech synthesis
-  const ssmlRateMap = { slow: "0.85", normal: "1.0", fast: "1.2" };
-  const ssmlRate = ssmlRateMap[speed] || "1.0";
-  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${langTag}"><voice name="${voiceName}"><prosody rate="${ssmlRate}">${escapeXml(
-    text
-  )}</prosody></voice></speak>`;
 
   return {
     audioUrl: undefined,

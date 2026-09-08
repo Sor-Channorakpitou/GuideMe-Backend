@@ -1,3 +1,23 @@
+import {
+  hardenAndValidateTutorial,
+  AIGuideResponseSchema,
+  IntentRerankResponseSchema,
+  ContextualAssistantResponseSchema,
+} from "./ai-schema.validator.js";
+
+/**
+ * Strips reasoning tokens (<think>...</think>) and markdown code fences from LLM responses.
+ */
+export function cleanJsonResponse(rawText: string): string {
+  if (!rawText) return "";
+  let cleaned = rawText.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (match) {
+    cleaned = match[1].trim();
+  }
+  return cleaned;
+}
+
 export interface GeneratedStep {
   stepNumber: number;
   title: string;
@@ -65,7 +85,12 @@ You MUST return ONLY valid JSON adhering strictly to this schema:
         const data: any = await response.json();
         const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (jsonText) {
-          return JSON.parse(jsonText);
+          const cleaned = cleanJsonResponse(jsonText);
+          const parsed = JSON.parse(cleaned);
+          const validated = AIGuideResponseSchema.safeParse(parsed);
+          if (validated.success) {
+            return validated.data as AIGuideResponse;
+          }
         }
       }
     } catch (err) {
@@ -132,12 +157,13 @@ Output MUST be ONLY valid JSON matching this schema:
         if (contentText) {
           const cleaned = cleanJsonResponse(contentText);
           const parsed = JSON.parse(cleaned);
-          if (parsed && typeof parsed.answer === "string") {
+          const validated = ContextualAssistantResponseSchema.safeParse(parsed);
+          if (validated.success) {
             return {
-              answer: parsed.answer,
-              triggerGuide: parsed.triggerGuide ?? true,
-              intentPrompt: parsed.intentPrompt || question,
-              relatedTips: parsed.relatedTips || [],
+              answer: validated.data.answer,
+              triggerGuide: validated.data.triggerGuide,
+              intentPrompt: validated.data.intentPrompt || question,
+              relatedTips: validated.data.relatedTips,
             };
           }
         }
@@ -173,13 +199,17 @@ Output MUST be ONLY valid JSON matching this schema:
         const data: any = await response.json();
         const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (jsonText) {
-          const parsed = JSON.parse(jsonText);
-          return {
-            answer: parsed.answer,
-            triggerGuide: parsed.triggerGuide ?? true,
-            intentPrompt: parsed.intentPrompt || question,
-            relatedTips: parsed.relatedTips || [],
-          };
+          const cleaned = cleanJsonResponse(jsonText);
+          const parsed = JSON.parse(cleaned);
+          const validated = ContextualAssistantResponseSchema.safeParse(parsed);
+          if (validated.success) {
+            return {
+              answer: validated.data.answer,
+              triggerGuide: validated.data.triggerGuide,
+              intentPrompt: validated.data.intentPrompt || question,
+              relatedTips: validated.data.relatedTips,
+            };
+          }
         }
       }
     } catch (err) {
@@ -319,18 +349,7 @@ export interface DomCandidate {
   selector: string;
 }
 
-/**
- * Strips reasoning tokens (<think>...</think>) and markdown code fences from LLM responses.
- */
-function cleanJsonResponse(rawText: string): string {
-  if (!rawText) return "";
-  let cleaned = rawText.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-  const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (match) {
-    cleaned = match[1].trim();
-  }
-  return cleaned;
-}
+
 
 /**
  * Generates an interactive GuideMe walkthrough schema from live webpage DOM elements
@@ -425,7 +444,7 @@ Generate the interactive tutorial JSON now.`;
           const cleaned = cleanJsonResponse(contentText);
           const parsed = JSON.parse(cleaned);
           if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
-            return parsed;
+            return hardenAndValidateTutorial(parsed, elements, prompt);
           }
         }
       } else {
@@ -461,9 +480,10 @@ Generate the interactive tutorial JSON now.`;
         const data: any = await response.json();
         const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (jsonText) {
-          const parsed = JSON.parse(jsonText);
+          const cleaned = cleanJsonResponse(jsonText);
+          const parsed = JSON.parse(cleaned);
           if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
-            return parsed;
+            return hardenAndValidateTutorial(parsed, elements, prompt);
           }
         }
       }
@@ -473,50 +493,7 @@ Generate the interactive tutorial JSON now.`;
   }
 
   // ── 3. Heuristic / Template Fallback ──
-  const firstElem = elements[0];
-  return {
-    id: `dynamic-guide-${Date.now()}`,
-    version: "1.0.0",
-    name: {
-      km: `ការណែនាំ៖ ${prompt}`,
-      en: `Guide: ${prompt}`,
-    },
-    description: {
-      km: `ការណែនាំជំហានលើទំព័រនេះសម្រាប់ "${prompt}"`,
-      en: `Step-by-step guidance on this page for "${prompt}"`,
-    },
-    matchUrls: ["<all_urls>"],
-    steps: [
-      {
-        id: "step_1",
-        title: {
-          km: `ចុចលើ ${firstElem.text || firstElem.tag}`,
-          en: `Click ${firstElem.text || firstElem.tag}`,
-        },
-        description: {
-          km: "អនុវត្តជំហានដំបូងដើម្បីបន្ត",
-          en: "Perform the first step to continue",
-        },
-        target: {
-          css: firstElem.selector,
-          text: firstElem.text,
-          ariaLabel: firstElem.ariaLabel,
-        },
-        action: {
-          type: "spotlight",
-          title: { km: "ជំហានទី ១", en: "Step 1" },
-          content: {
-            km: `ចុចលើប៊ូតុងនេះដើម្បីបន្ត "${prompt}"`,
-            en: `Click this element to proceed with "${prompt}"`,
-          },
-          placement: "bottom",
-        },
-        validation: {
-          type: firstElem.tag === "input" ? "input" : "click",
-        },
-      },
-    ],
-  };
+  return hardenAndValidateTutorial({}, elements, prompt);
 }
 
 export async function rerankIntentCandidates(
@@ -563,9 +540,10 @@ export async function rerankIntentCandidates(
         if (contentText) {
           const cleaned = cleanJsonResponse(contentText);
           const parsed = JSON.parse(cleaned);
-          if (Array.isArray(parsed.stepIds)) {
+          const validated = IntentRerankResponseSchema.safeParse(parsed);
+          if (validated.success && Array.isArray(validated.data.stepIds)) {
             const validIds = new Set(candidates.map((c) => c.id));
-            const filtered = parsed.stepIds.filter((id: string) => validIds.has(id));
+            const filtered = validated.data.stepIds.filter((id: string) => validIds.has(id));
             if (filtered.length > 0) {
               return { stepIds: filtered };
             }
@@ -605,10 +583,12 @@ export async function rerankIntentCandidates(
         const data: any = await response.json();
         const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (jsonText) {
-          const parsed = JSON.parse(jsonText);
-          if (Array.isArray(parsed.stepIds)) {
+          const cleaned = cleanJsonResponse(jsonText);
+          const parsed = JSON.parse(cleaned);
+          const validated = IntentRerankResponseSchema.safeParse(parsed);
+          if (validated.success && Array.isArray(validated.data.stepIds)) {
             const validIds = new Set(candidates.map((c) => c.id));
-            const filtered = parsed.stepIds.filter((id: string) => validIds.has(id));
+            const filtered = validated.data.stepIds.filter((id: string) => validIds.has(id));
             if (filtered.length > 0) {
               return { stepIds: filtered };
             }
