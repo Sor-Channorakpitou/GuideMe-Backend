@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  EXPIRED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  password      String?
+  phone         String?
+  avatar        String?
+  language      String   @default("km")
+  plan          Plan     @default(FREE)
+  emailVerified Boolean  @default(false)
+  googleId      String?  @unique
+  facebookId    String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  notificationSettings NotificationSetting?
+  appSettings          AppSetting?
+  userGuides           UserGuide[]
+  activities           Activity[]
+  billing              Billing?
+  paymentMethods       PaymentMethod[]
+  billingHistory       BillingHistory[]
+  communityPosts       CommunityPost[]
+  communityComments    CommunityComment[]
+  contributor          Contributor?
+  supportTickets       SupportTicket[]
+}
+
+model NotificationSetting {
+  id         String  @id @default(cuid())
+  userId     String  @unique
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email      Boolean @default(true)
+  push       Boolean @default(true)
+  newGuides  Boolean @default(true)
+  updates    Boolean @default(true)
+  tips       Boolean @default(true)
+}
+
+model AppSetting {
+  id             String  @id @default(cuid())
+  userId         String  @unique
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  overlayEnabled Boolean @default(true)
+  voiceEnabled   Boolean @default(true)
+  readingSpeed   String  @default("normal")
+}
+
+model Guide {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  steps       Json
+  createdAt   DateTime @default(now())
+
+  userGuides UserGuide[]
+  activities Activity[]
+}
+
+model UserGuide {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guideId     String
+  guide       Guide    @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  currentStep Int      @default(1)
+  totalSteps  Int
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, guideId])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String
+  guideId     String?
+  guide       Guide?   @relation(fields: [guideId], references: [id], onDelete: SetNull)
+  description String
+  createdAt   DateTime @default(now())
+}
+
+model Billing {
+  id              String             @id @default(cuid())
+  userId          String             @unique
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan            Plan               @default(FREE)
+  status          SubscriptionStatus @default(ACTIVE)
+  nextBillingDate DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model PaymentMethod {
+  id         String  @id @default(cuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String
+  last4      String
+  expMonth   Int
+  expYear    Int
+  isDefault  Boolean @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model BillingHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan      Plan
+  amount    Float
+  status    String
+  date      DateTime @default(now())
+  invoiceUrl String?
+}
+
+model CommunityPost {
+  id            String                @id @default(cuid())
+  userId        String
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category      String
+  title         String
+  description   String
+  likes         Int                   @default(0)
+  likedBy       String[]
+  commentsCount Int                   @default(0)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  comments CommunityComment[]
+}
+
+model CommunityComment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Contributor {
+  id        String @id @default(cuid())
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postCount Int    @default(0)
+  role      String @default("member")
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  category  String
+  subject   String
+  message   String
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+}
