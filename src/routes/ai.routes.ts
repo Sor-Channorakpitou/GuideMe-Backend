@@ -22,7 +22,6 @@ router.post(
 // ── Contextual Assistant Q&A ──
 router.post(
   "/assistant-chat",
-  auth,
   [
     body("question").isString().trim().notEmpty(),
     body("context").optional().isObject(),
@@ -43,4 +42,18 @@ router.post(
   aiCtrl.rerankIntentCandidates
 );
 
+// ── Live DOM Candidate Walkthrough Synthesizer (Extension AI Agent Endpoint) ──
+router.post(
+  "/dom-guide",
+  [
+    body("prompt").isString().trim().notEmpty(),
+    body("elements").isArray({ min: 1 }),
+    body("url").optional().isString(),
+    body("language").optional().isIn(["km", "en"]),
+    validate,
+  ],
+  aiCtrl.generateDomGuide
+);
+
 export default router;
+

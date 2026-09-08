@@ -81,22 +81,77 @@ export async function askContextualAssistant(
   question: string,
   context?: { guideTitle?: string; currentStep?: number; stepInstruction?: string },
   language = "km"
-): Promise<{ answer: string; relatedTips?: string[] }> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
+): Promise<{ answer: string; triggerGuide: boolean; intentPrompt?: string; relatedTips?: string[] }> {
+  const nvidiaApiKey = process.env.NVIDIA_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
 
-  if (apiKey && process.env.GEMINI_API_KEY) {
-    try {
-      const systemPrompt = `You are GuideMe AI Assistant, a friendly and patient digital literacy helper for Cambodian users.
+  const systemPrompt = `You are GuideMe AI Assistant, an expert interactive web walkthrough companion.
 Current User Context:
-${context?.guideTitle ? `Tutorial: "${context.guideTitle}"` : "General App Navigation"}
+${context?.guideTitle ? `Tutorial: "${context.guideTitle}"` : "General Webpage / App Navigation"}
 ${context?.currentStep ? `Current Step: ${context.currentStep}` : ""}
-${context?.stepInstruction ? `Step Instruction: "${context.stepInstruction}"` : ""}
 
-Answer the user's question clearly and simply in ${language === "km" ? "Khmer" : "English"}.
-Keep answers concise (2-4 sentences max), very encouraging and beginner-friendly.`;
+Analyze the User Question.
+If the user is asking to DO, FIND, SHARE, EDIT, or PERFORM something on the page (e.g. "how do I share doc", "help me share...", "click login", "where is settings", "search products", "export file"), you MUST set "triggerGuide": true and provide "intentPrompt" with the clean actionable command.
+If the user is just saying hello or asking an abstract informational question, set "triggerGuide": false.
 
+Output MUST be ONLY valid JSON matching this schema:
+{
+  "answer": "Your friendly conversational answer in ${language === "km" ? "Khmer (ភាសាខ្មែរ)" : "English"}",
+  "triggerGuide": boolean,
+  "intentPrompt": "The actionable command string or null",
+  "relatedTips": ["Tip 1", "Tip 2"]
+}`;
+
+  // 1. Try NVIDIA AI NIM (Kimi-K3)
+  if (nvidiaApiKey) {
+    try {
+      const endpoint = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1/chat/completions";
+      const model = process.env.NVIDIA_MODEL || "moonshotai/kimi-k3";
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${nvidiaApiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: question },
+          ],
+          temperature: 0.2,
+          max_tokens: 1024,
+        }),
+        signal: AbortSignal.timeout(3500),
+      });
+
+      if (response.ok) {
+        const data: any = await response.json();
+        const contentText = data.choices?.[0]?.message?.content;
+        if (contentText) {
+          const cleaned = cleanJsonResponse(contentText);
+          const parsed = JSON.parse(cleaned);
+          if (parsed && typeof parsed.answer === "string") {
+            return {
+              answer: parsed.answer,
+              triggerGuide: parsed.triggerGuide ?? true,
+              intentPrompt: parsed.intentPrompt || question,
+              relatedTips: parsed.relatedTips || [],
+            };
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn("[AI Assistant] NVIDIA NIM failed, checking Gemini:", err?.message);
+    }
+  }
+
+  // 2. Try Gemini API
+  if (geminiApiKey) {
+    try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -108,20 +163,22 @@ Keep answers concise (2-4 sentences max), very encouraging and beginner-friendly
                 ],
               },
             ],
+            generationConfig: { responseMimeType: "application/json" },
           }),
+          signal: AbortSignal.timeout(3500),
         }
       );
 
       if (response.ok) {
         const data: any = await response.json();
-        const answerText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (answerText) {
+        const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (jsonText) {
+          const parsed = JSON.parse(jsonText);
           return {
-            answer: answerText,
-            relatedTips: [
-              language === "km" ? "ចុចប៊ូតុងសំឡេងដើម្បីស្តាប់ការណែនាំ" : "Click the audio button to hear instructions",
-              language === "km" ? "អ្នកអាចសួរខ្ញុំបន្ថែមប្រសិនបើមិនទាន់ច្បាស់" : "Feel free to ask more if anything is unclear",
-            ],
+            answer: parsed.answer,
+            triggerGuide: parsed.triggerGuide ?? true,
+            intentPrompt: parsed.intentPrompt || question,
+            relatedTips: parsed.relatedTips || [],
           };
         }
       }
@@ -130,10 +187,17 @@ Keep answers concise (2-4 sentences max), very encouraging and beginner-friendly
     }
   }
 
-  // Fallback assistant response
+  // 3. Smart action heuristic fallback
+  const isActionable = /\b(share|click|open|find|search|edit|save|login|sign|send|upload|download|export|how to|help me|can you|show me)\b/i.test(question) ||
+    /(ចែករំលែក|ចុច|បើក|ស្វែងរក|កែ|រក្សាទុក|ចូល|ផ្ញើ|ទាញយក|របៀប|ជួយ)/.test(question);
+
   if (language === "km") {
     return {
-      answer: `សម្រាប់ជំនួយអំពី "${question}"៖ សូមពិនិត្យមើលការណែនាំនៅលើអេក្រង់ ហើយចុចលើប្រអប់ដែលមានសញ្ញាពន្លឺពណ៌ខៀវ។ ប្រសិនបើមានបញ្ហា សូមចុចប៊ូតុង 'សាកល្បងម្តងទៀត'។`,
+      answer: isActionable
+        ? `ខ្ញុំយល់ហើយ! ខ្ញុំកំពុងបង្ហាញនិងបញ្ជាក់លើប៊ូតុងនៅលើអេក្រង់របស់អ្នកដើម្បីជួយអ្នក "${question}"។`
+        : `សម្រាប់ជំនួយអំពី "${question}"៖ សូមពិនិត្យមើលការណែនាំនៅលើអេក្រង់។`,
+      triggerGuide: isActionable,
+      intentPrompt: isActionable ? question : undefined,
       relatedTips: [
         "ពិនិត្យការតភ្ជាប់អ៊ីនធឺណិតរបស់អ្នក",
         "ចុចប៊ូតុងសំឡេងដើម្បីស្តាប់ការណែនាំជាភាសាខ្មែរ",
@@ -142,7 +206,11 @@ Keep answers concise (2-4 sentences max), very encouraging and beginner-friendly
   }
 
   return {
-    answer: `For help regarding "${question}": Please check the highlighted element on your screen and follow the indicated step. You can also re-listen to the voice guidance anytime.`,
+    answer: isActionable
+      ? `Got it! I am spotlighting the relevant action on your screen to guide you step-by-step for "${question}".`
+      : `For help regarding "${question}": Please check the highlighted element on your screen.`,
+    triggerGuide: isActionable,
+    intentPrompt: isActionable ? question : undefined,
     relatedTips: [
       "Ensure you are logged in to the correct account",
       "Click the voice icon to hear audio instructions",
@@ -237,6 +305,220 @@ export interface CandidateDescriptor {
  * Re-ranks Stage 1 candidates via Gemini LLM on the backend.
  * Keeps all API keys, prompts, and server secrets securely on the server side.
  */
+export interface DomCandidate {
+  index?: number;
+  tag: string;
+  type?: string;
+  id?: string;
+  name?: string;
+  testId?: string;
+  ariaLabel?: string;
+  placeholder?: string;
+  role?: string;
+  text?: string;
+  selector: string;
+}
+
+/**
+ * Strips reasoning tokens (<think>...</think>) and markdown code fences from LLM responses.
+ */
+function cleanJsonResponse(rawText: string): string {
+  if (!rawText) return "";
+  let cleaned = rawText.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (match) {
+    cleaned = match[1].trim();
+  }
+  return cleaned;
+}
+
+/**
+ * Generates an interactive GuideMe walkthrough schema from live webpage DOM elements
+ * using NVIDIA AI NIM (moonshotai/kimi-k3) or Google Gemini.
+ */
+export async function generateDomGuideSteps(params: {
+  prompt: string;
+  elements: DomCandidate[];
+  url?: string;
+  language?: string;
+}): Promise<any> {
+  const { prompt, elements, url = "", language = "km" } = params;
+
+  if (!Array.isArray(elements) || elements.length === 0) {
+    throw new Error("No interactive DOM elements provided for AI analysis.");
+  }
+
+  const nvidiaApiKey = process.env.NVIDIA_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+
+  const systemInstruction = `You are GuideMe AI, an expert interactive web walkthrough and DOM guidance engine.
+Your mission is to inspect the provided interactive DOM elements from a webpage and the user's intent, and generate a step-by-step interactive tutorial flow adhering strictly to GuideMe's JSON schema.
+
+Requirements:
+1. Select ONLY elements from the provided interactive DOM elements list.
+2. For each step:
+   - "id": unique string identifier (e.g. "step_1", "step_2")
+   - "target": {
+       "css": exact CSS selector from the candidate list (e.g. "#search-box", ".login-btn"),
+       "text": element text if present,
+       "ariaLabel": ariaLabel if present,
+       "testId": testId if present
+     }
+   - "action": {
+       "type": "spotlight",
+       "title": { "km": "...", "en": "..." },
+       "content": { "km": "...", "en": "..." },
+       "placement": "bottom" | "top" | "left" | "right"
+     }
+   - "validation": {
+       "type": "click" | "input" | "change" | "submit" | "manual_next"
+     }
+   - "title": Bilingual object { "km": "...", "en": "..." }
+   - "description": Bilingual object { "km": "...", "en": "..." }
+3. GuideMe is Khmer-First: "km" (Khmer) must be natural, accurate, and beginner-friendly. "en" (English) is secondary.
+4. Output MUST be ONLY pure valid JSON (no surrounding markdown text, no conversational filler) matching:
+{
+  "id": "nvidia-guide-${Date.now()}",
+  "version": "1.0.0",
+  "name": { "km": "...", "en": "..." },
+  "description": { "km": "...", "en": "..." },
+  "matchUrls": ["<all_urls>"],
+  "steps": [ ... ]
+}`;
+
+  const userContent = `Page URL: ${url || "webpage"}
+User Request / Goal: "${prompt}"
+
+Interactive DOM Elements on page:
+${JSON.stringify(elements.slice(0, 80), null, 2)}
+
+Generate the interactive tutorial JSON now.`;
+
+  // ── 1. Try NVIDIA AI NIM (Free Kimi-K3 Endpoint) ──
+  if (nvidiaApiKey) {
+    try {
+      const endpoint = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1/chat/completions";
+      const model = process.env.NVIDIA_MODEL || "moonshotai/kimi-k3";
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${nvidiaApiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemInstruction },
+            { role: "user", content: userContent },
+          ],
+          temperature: 0.2,
+          max_tokens: 4096,
+          stream: false,
+        }),
+      });
+
+      if (response.ok) {
+        const data: any = await response.json();
+        const contentText = data.choices?.[0]?.message?.content;
+        if (contentText) {
+          const cleaned = cleanJsonResponse(contentText);
+          const parsed = JSON.parse(cleaned);
+          if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+            return parsed;
+          }
+        }
+      } else {
+        const errText = await response.text().catch(() => "");
+        console.warn(`[AI Service] NVIDIA NIM returned HTTP ${response.status}:`, errText.slice(0, 200));
+      }
+    } catch (err: any) {
+      console.warn("[AI Service] NVIDIA NIM generation error, checking Gemini fallback:", err?.message);
+    }
+  }
+
+  // ── 2. Try Gemini API Fallback ──
+  if (geminiApiKey) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: `${systemInstruction}\n\n${userContent}` }],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.2,
+          },
+        }),
+      });
+
+      if (response.ok) {
+        const data: any = await response.json();
+        const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (jsonText) {
+          const parsed = JSON.parse(jsonText);
+          if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+            return parsed;
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn("[AI Service] Gemini fallback generation error:", err?.message);
+    }
+  }
+
+  // ── 3. Heuristic / Template Fallback ──
+  const firstElem = elements[0];
+  return {
+    id: `dynamic-guide-${Date.now()}`,
+    version: "1.0.0",
+    name: {
+      km: `ការណែនាំ៖ ${prompt}`,
+      en: `Guide: ${prompt}`,
+    },
+    description: {
+      km: `ការណែនាំជំហានលើទំព័រនេះសម្រាប់ "${prompt}"`,
+      en: `Step-by-step guidance on this page for "${prompt}"`,
+    },
+    matchUrls: ["<all_urls>"],
+    steps: [
+      {
+        id: "step_1",
+        title: {
+          km: `ចុចលើ ${firstElem.text || firstElem.tag}`,
+          en: `Click ${firstElem.text || firstElem.tag}`,
+        },
+        description: {
+          km: "អនុវត្តជំហានដំបូងដើម្បីបន្ត",
+          en: "Perform the first step to continue",
+        },
+        target: {
+          css: firstElem.selector,
+          text: firstElem.text,
+          ariaLabel: firstElem.ariaLabel,
+        },
+        action: {
+          type: "spotlight",
+          title: { km: "ជំហានទី ១", en: "Step 1" },
+          content: {
+            km: `ចុចលើប៊ូតុងនេះដើម្បីបន្ត "${prompt}"`,
+            en: `Click this element to proceed with "${prompt}"`,
+          },
+          placement: "bottom",
+        },
+        validation: {
+          type: firstElem.tag === "input" ? "input" : "click",
+        },
+      },
+    ],
+  };
+}
+
 export async function rerankIntentCandidates(
   prompt: string,
   candidates: CandidateDescriptor[]
@@ -245,15 +527,61 @@ export async function rerankIntentCandidates(
     return { stepIds: [] };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY || process.env.OPENAI_API_KEY;
+  const nvidiaApiKey = process.env.NVIDIA_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
 
-  if (apiKey && process.env.GEMINI_API_KEY) {
+  const systemPrompt =
+    'You are an interactive tutorial engine. Given a user goal and UI candidates, return the 1 to 3 candidate IDs in order of interaction needed to fulfill the goal. Return ONLY valid JSON matching: {"stepIds": ["cand-0", ...]}';
+  const userMessage = JSON.stringify({ userGoal: prompt, candidates });
+
+  // 1. Try NVIDIA NIM first if configured
+  if (nvidiaApiKey) {
     try {
-      const systemPrompt = `You are an interactive tutorial engine. Given a user goal and UI candidates, return the 1 to 3 candidate IDs in order of interaction needed to fulfill the goal. Return ONLY valid JSON matching: {"stepIds": ["cand-0", ...]}`;
-      const userMessage = JSON.stringify({ userGoal: prompt, candidates });
+      const endpoint = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1/chat/completions";
+      const model = process.env.NVIDIA_MODEL || "moonshotai/kimi-k3";
 
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${nvidiaApiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          temperature: 0.1,
+          max_tokens: 512,
+        }),
+      });
+
+      if (response.ok) {
+        const data: any = await response.json();
+        const contentText = data.choices?.[0]?.message?.content;
+        if (contentText) {
+          const cleaned = cleanJsonResponse(contentText);
+          const parsed = JSON.parse(cleaned);
+          if (Array.isArray(parsed.stepIds)) {
+            const validIds = new Set(candidates.map((c) => c.id));
+            const filtered = parsed.stepIds.filter((id: string) => validIds.has(id));
+            if (filtered.length > 0) {
+              return { stepIds: filtered };
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[AI Service] NVIDIA NIM reranking failed, trying Gemini:", err);
+    }
+  }
+
+  // 2. Try Gemini API
+  if (geminiApiKey) {
+    try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -297,3 +625,4 @@ export async function rerankIntentCandidates(
     stepIds: candidates.slice(0, 3).map((c) => c.id),
   };
 }
+

@@ -31,3 +31,14 @@ export async function rerankIntentCandidates(req: any, res: Response, next: Next
     next(err);
   }
 }
+
+export async function generateDomGuide(req: any, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { prompt, elements, url, language } = req.body;
+    const result = await aiService.generateDomGuideSteps({ prompt, elements, url, language });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
