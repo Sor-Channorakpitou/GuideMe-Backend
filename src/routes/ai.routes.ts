@@ -26,6 +26,7 @@ router.post(
     body("question").isString().trim().notEmpty(),
     body("context").optional().isObject(),
     body("language").optional().isIn(["km", "en"]),
+    body("image").optional().isString(),
     validate,
   ],
   aiCtrl.askAssistant

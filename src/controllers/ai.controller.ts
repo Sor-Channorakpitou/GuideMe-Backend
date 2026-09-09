@@ -14,8 +14,8 @@ export async function generateGuide(req: AuthRequest, res: Response, next: NextF
 
 export async function askAssistant(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { question, context, language } = req.body;
-    const result = await aiService.askContextualAssistant(question, context, language);
+    const { question, context, language, image } = req.body;
+    const result = await aiService.askContextualAssistant(question, context, language, image);
     res.json(result);
   } catch (err) {
     next(err);

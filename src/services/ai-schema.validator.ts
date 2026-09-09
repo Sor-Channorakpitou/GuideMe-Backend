@@ -99,10 +99,32 @@ export const IntentRerankResponseSchema = z.object({
   stepIds: z.array(z.string()),
 });
 
+export const AssistantIntentSchema = z.preprocess((val: any) => {
+  if (val && typeof val === "object") {
+    const targetQuery = val.targetQuery || val.target || val.query || val.element || val.targetElement || "action";
+    return {
+      ...val,
+      targetQuery: typeof targetQuery === "string" ? targetQuery : String(targetQuery || "action"),
+    };
+  }
+  return val;
+}, z.object({
+  targetQuery: z.string().min(1),
+  action: z.enum(["click", "input", "change", "submit"]).catch("click"),
+  role: z.enum(["button", "input", "link", "tab", "menuitem", "element"]).catch("button").optional(),
+  category: z.string().optional(),
+  expectedInput: z.string().optional(),
+}));
+
 export const ContextualAssistantResponseSchema = z.object({
   answer: z.string().min(1),
   triggerGuide: z.boolean().default(false),
-  intentPrompt: z.string().optional(),
+  intentPrompt: z.string().optional().nullable(),
+  intent: z.preprocess((val) => {
+    if (!val || typeof val !== "object") return null;
+    const res = AssistantIntentSchema.safeParse(val);
+    return res.success ? res.data : null;
+  }, AssistantIntentSchema.nullable().optional()),
   relatedTips: z.array(z.string()).default([]),
 });
 
