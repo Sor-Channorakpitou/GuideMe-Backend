@@ -35,6 +35,10 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // AI usage tracking
+  aiRequestsCount  Int       @default(0)
+  lastAiRequestAt  DateTime?
+
   notificationSettings NotificationSetting?
   appSettings          AppSetting?
   userGuides           UserGuide[]
