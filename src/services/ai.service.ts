@@ -1,4 +1,4 @@
-import {
+﻿import {
   hardenAndValidateTutorial,
   AIGuideResponseSchema,
   IntentRerankResponseSchema,
@@ -31,6 +31,61 @@ export interface AIGuideResponse {
   description: string;
   category: string;
   steps: GeneratedStep[];
+}
+
+export interface DomElementSummary {
+  tag: string;
+  id: string;
+  className: string;
+  text: string;
+  type: string;
+  role: string;
+  ariaLabel: string;
+  placeholder: string;
+  name: string;
+  selector: string;
+  href: string;
+  rect: { x: number; y: number; width: number; height: number };
+  isVisible: boolean;
+}
+
+export interface GenerateStepsRequest {
+  prompt: string;
+  language: string;
+  elements: DomElementSummary[];
+  url: string;
+}
+
+export interface TutorialStep {
+  id: string;
+  title: string;
+  description: string;
+  target: {
+    css?: string;
+    testId?: string;
+    ariaLabel?: string;
+    text?: string;
+  };
+  action: {
+    type: string;
+    title: string;
+    content: string;
+    placement: string;
+  };
+  validation: {
+    type: string;
+  };
+}
+
+export interface GenerateStepsResponse {
+  done?: boolean;
+  tutorial: {
+    id: string;
+    version: string;
+    name: string;
+    description: string;
+    steps: TutorialStep[];
+  };
 }
 
 /**
@@ -98,7 +153,7 @@ export async function generateGuideSteps(
     try {
       const systemInstruction = `You are an expert digital literacy tutor in Cambodia for the GuideMe application.
 Generate a step-by-step interactive tutorial based on this user prompt: "${prompt}".
-Language requested: ${language === "km" ? "Khmer (ភាសាខ្មែរ)" : "English"}.
+Language requested: ${language === "km" ? "Khmer (ß₧ùß₧╢ß₧ƒß₧╢ß₧üßƒÆß₧ÿßƒéß₧Ü)" : "English"}.
 Category: ${category}.
 
 You MUST return ONLY valid JSON adhering strictly to this schema:
@@ -173,7 +228,7 @@ You MUST return ONLY valid JSON adhering strictly to this schema:
                   {
                     text: `You are an expert digital literacy tutor in Cambodia for the GuideMe application.
 Generate a step-by-step interactive tutorial based on this user prompt: "${prompt}".
-Language requested: ${language === "km" ? "Khmer (ភាសាខ្មែរ)" : "English"}.
+Language requested: ${language === "km" ? "Khmer (ß₧ùß₧╢ß₧ƒß₧╢ß₧üßƒÆß₧ÿßƒéß₧Ü)" : "English"}.
 Category: ${category}.
 
 You MUST return ONLY valid JSON adhering strictly to this schema:
@@ -241,12 +296,12 @@ export function extractIntentFromPrompt(
 ): AssistantIntentInstruction {
   const text = `${question} ${intentPrompt || ""}`.toLowerCase();
 
-  const isShare = /\b(share|collaborat|invite|distribut|broadcast|publish|ចែករំលែក|អញ្ជើញ|ផ្សព្វផ្សាយ)\b/i.test(text);
-  const isSearch = /\b(search|find|lookup|query|explore|browse|filter|ស្វែងរក|រក)\b/i.test(text);
-  const isAuth = /\b(login|log\s*in|sign\s*in|signin|register|signup|auth|ចូល|ចុះឈ្មោះ)\b/i.test(text);
-  const isSettings = /\b(settings|setting|preference|config|profile|account|ការកំណត់|គណនី)\b/i.test(text);
-  const isExport = /\b(export|download|save|print|ទាញយក|រក្សាទុក)\b/i.test(text);
-  const isNew = /\b(new|create|add|\+|compose|upload|បង្កើត|បន្ថែម)\b/i.test(text);
+  const isShare = /\b(share|collaborat|invite|distribut|broadcast|publish|ß₧àßƒéß₧Çß₧Üßƒåß₧¢ßƒéß₧Ç|ß₧óß₧ëßƒÆß₧çß₧╛ß₧ë|ß₧òßƒÆß₧ƒß₧ûßƒÆß₧£ß₧òßƒÆß₧ƒß₧╢ß₧Ö)\b/i.test(text);
+  const isSearch = /\b(search|find|lookup|query|explore|browse|filter|ß₧ƒßƒÆß₧£ßƒéß₧äß₧Üß₧Ç|ß₧Üß₧Ç)\b/i.test(text);
+  const isAuth = /\b(login|log\s*in|sign\s*in|signin|register|signup|auth|ß₧àß₧╝ß₧¢|ß₧àß₧╗ßƒçß₧êßƒÆß₧ÿßƒäßƒç)\b/i.test(text);
+  const isSettings = /\b(settings|setting|preference|config|profile|account|ß₧Çß₧╢ß₧Üß₧Çßƒåß₧Äß₧Åßƒï|ß₧éß₧Äß₧ôß₧╕)\b/i.test(text);
+  const isExport = /\b(export|download|save|print|ß₧æß₧╢ß₧ëß₧Öß₧Ç|ß₧Üß₧ÇßƒÆß₧ƒß₧╢ß₧æß₧╗ß₧Ç)\b/i.test(text);
+  const isNew = /\b(new|create|add|\+|compose|upload|ß₧öß₧äßƒÆß₧Çß₧╛ß₧Å|ß₧öß₧ôßƒÆß₧Éßƒéß₧ÿ)\b/i.test(text);
 
   if (isShare) {
     return { targetQuery: "Share", action: "click", role: "button", category: "share" };
@@ -330,7 +385,7 @@ If NOT ACTIONABLE (greetings like "hi", "hello", or thanking "thanks", or "who a
 Output MUST be ONLY valid JSON matching this schema:
 For Actionable Questions:
 {
-  "answer": "Your friendly conversational answer in ${language === "km" ? "Khmer (ភាសាខ្មែរ)" : "English"}",
+  "answer": "Your friendly conversational answer in ${language === "km" ? "Khmer (ß₧ùß₧╢ß₧ƒß₧╢ß₧üßƒÆß₧ÿßƒéß₧Ü)" : "English"}",
   "triggerGuide": true,
   "intentPrompt": "The actionable command string",
   "intent": {
@@ -352,7 +407,7 @@ For Greetings / Non-Actionable:
   "relatedTips": ["Tip 1", "Tip 2"]
 }`;
 
-  // 1. Try OpenRouter Universal AI Gateway (Top Priority — zero quota bottleneck)
+  // 1. Try OpenRouter Universal AI Gateway (Top Priority ΓÇö zero quota bottleneck)
   const openRouter = getOpenRouterConfig();
   if (openRouter) {
     try {
@@ -493,29 +548,29 @@ For Greetings / Non-Actionable:
   // 3. Smart Heuristic Fallback (Offline / Failover)
   const isGreeting =
     /\b(hi|hello|hey|heya|yo|hiya|howdy|sup|greetings|say\s*hi|say\s*hello|good\s*(morning|afternoon|evening|day))\b/i.test(question) ||
-    /(សួស្ដី|ជំរាបសួរ|សួស្តី|ជម្រាបសួរ|ហេឡូ|ហាយ)/.test(question);
+    /(ß₧ƒß₧╜ß₧ƒßƒÆß₧èß₧╕|ß₧çßƒåß₧Üß₧╢ß₧öß₧ƒß₧╜ß₧Ü|ß₧ƒß₧╜ß₧ƒßƒÆß₧Åß₧╕|ß₧çß₧ÿßƒÆß₧Üß₧╢ß₧öß₧ƒß₧╜ß₧Ü|ß₧áßƒüß₧íß₧╝|ß₧áß₧╢ß₧Ö)/.test(question);
 
   const isGratitude =
     /\b(thanks?|thank\s+you|thx|cheers)\b/i.test(question) ||
-    /(អរគុណ|សូមអរគុណ)/.test(question);
+    /(ß₧óß₧Üß₧éß₧╗ß₧Ä|ß₧ƒß₧╝ß₧ÿß₧óß₧Üß₧éß₧╗ß₧Ä)/.test(question);
 
   const isIdentity =
     /\b(who\s+are\s+you|what\s+are\s+you|what\s+can\s+you\s+do|what\s+is\s+guideme)\b/i.test(question) ||
-    /(អ្នកជាអ្នកណា|តើអ្នកអាចធ្វើអ្វីបាន|តើ\s*guideme\s*ជាអ្វី)/.test(question);
+    /(ß₧óßƒÆß₧ôß₧Çß₧çß₧╢ß₧óßƒÆß₧ôß₧Çß₧Äß₧╢|ß₧Åß₧╛ß₧óßƒÆß₧ôß₧Çß₧óß₧╢ß₧àß₧ÆßƒÆß₧£ß₧╛ß₧óßƒÆß₧£ß₧╕ß₧öß₧╢ß₧ô|ß₧Åß₧╛\s*guideme\s*ß₧çß₧╢ß₧óßƒÆß₧£ß₧╕)/.test(question);
 
   const isActionable = Boolean(image) || (
     !isGreeting && !isGratitude && !isIdentity && (
       /\b(share|click|open|find|search|edit|save|login|sign|send|upload|download|export|how to|help me|can you|show me|error|fix)\b/i.test(question) ||
-      /(ចែករំលែក|ចុច|បើក|ស្វែងរក|កែ|រក្សាទុក|ចូល|ផ្ញើ|ទាញយក|របៀប|ជួយ|កំហុស|ដោះស្រាយ)/.test(question)
+      /(ß₧àßƒéß₧Çß₧Üßƒåß₧¢ßƒéß₧Ç|ß₧àß₧╗ß₧à|ß₧öß₧╛ß₧Ç|ß₧ƒßƒÆß₧£ßƒéß₧äß₧Üß₧Ç|ß₧Çßƒé|ß₧Üß₧ÇßƒÆß₧ƒß₧╢ß₧æß₧╗ß₧Ç|ß₧àß₧╝ß₧¢|ß₧òßƒÆß₧ëß₧╛|ß₧æß₧╢ß₧ëß₧Öß₧Ç|ß₧Üß₧ößƒÇß₧ö|ß₧çß₧╜ß₧Ö|ß₧Çßƒåß₧áß₧╗ß₧ƒ|ß₧èßƒäßƒçß₧ƒßƒÆß₧Üß₧╢ß₧Ö)/.test(question)
     )
   );
 
   let fallbackIntent: AssistantIntentInstruction | null = null;
   if (isActionable) {
-    const isSearch = /\b(search|find|ស្វែងរក|រក)\b/i.test(question);
-    const isShare = /\b(share|invite|ចែករំលែក)\b/i.test(question);
-    const isAuth = /\b(login|sign\s*in|register|ចូល)\b/i.test(question);
-    const isSettings = /\b(settings|profile|account|ការកំណត់)\b/i.test(question);
+    const isSearch = /\b(search|find|ß₧ƒßƒÆß₧£ßƒéß₧äß₧Üß₧Ç|ß₧Üß₧Ç)\b/i.test(question);
+    const isShare = /\b(share|invite|ß₧àßƒéß₧Çß₧Üßƒåß₧¢ßƒéß₧Ç)\b/i.test(question);
+    const isAuth = /\b(login|sign\s*in|register|ß₧àß₧╝ß₧¢)\b/i.test(question);
+    const isSettings = /\b(settings|profile|account|ß₧Çß₧╢ß₧Üß₧Çßƒåß₧Äß₧Åßƒï)\b/i.test(question);
 
     let targetQuery = "Action";
     let category = "general";
@@ -556,18 +611,18 @@ For Greetings / Non-Actionable:
       const nameMatch = question.match(/(?:say\s*hi|say\s*hello|greet)\s*(?:to\s+)?([a-zA-Z0-9_\s]{1,20}?)(?:\s+to\s+me|\s+please)?$/i);
       const targetName = nameMatch ? nameMatch[1].trim() : "";
       fallbackAnswer = targetName
-        ? `សួស្តី ${targetName}! ខ្ញុំជា GuideMe AI Assistant។ តើខ្ញុំអាចជួយអ្វីអ្នកនៅលើទំព័រនេះ?`
-        : `សួស្ដី! ខ្ញុំជា GuideMe AI Assistant។ តើខ្ញុំអាចជួយណែនាំអ្វីខ្លះដល់អ្នកនៅលើទំព័រនេះ?`;
+        ? `ß₧ƒß₧╜ß₧ƒßƒÆß₧Åß₧╕ ${targetName}! ß₧üßƒÆß₧ëß₧╗ßƒåß₧çß₧╢ GuideMe AI Assistantßƒö ß₧Åß₧╛ß₧üßƒÆß₧ëß₧╗ßƒåß₧óß₧╢ß₧àß₧çß₧╜ß₧Öß₧óßƒÆß₧£ß₧╕ß₧óßƒÆß₧ôß₧Çß₧ôßƒàß₧¢ß₧╛ß₧æßƒåß₧ûßƒÉß₧Üß₧ôßƒüßƒç?`
+        : `ß₧ƒß₧╜ß₧ƒßƒÆß₧èß₧╕! ß₧üßƒÆß₧ëß₧╗ßƒåß₧çß₧╢ GuideMe AI Assistantßƒö ß₧Åß₧╛ß₧üßƒÆß₧ëß₧╗ßƒåß₧óß₧╢ß₧àß₧çß₧╜ß₧Öß₧Äßƒéß₧ôß₧╢ßƒåß₧óßƒÆß₧£ß₧╕ß₧üßƒÆß₧¢ßƒçß₧èß₧¢ßƒïß₧óßƒÆß₧ôß₧Çß₧ôßƒàß₧¢ß₧╛ß₧æßƒåß₧ûßƒÉß₧Üß₧ôßƒüßƒç?`;
     } else if (isGratitude) {
-      fallbackAnswer = `រីករាយណាស់ដែលបានជួយ! ប្រសិនបើអ្នកត្រូវការជំនួយផ្សេងទៀត សូមប្រាប់ខ្ញុំបានគ្រប់ពេល។`;
+      fallbackAnswer = `ß₧Üß₧╕ß₧Çß₧Üß₧╢ß₧Öß₧Äß₧╢ß₧ƒßƒïß₧èßƒéß₧¢ß₧öß₧╢ß₧ôß₧çß₧╜ß₧Ö! ß₧ößƒÆß₧Üß₧ƒß₧╖ß₧ôß₧öß₧╛ß₧óßƒÆß₧ôß₧Çß₧ÅßƒÆß₧Üß₧╝ß₧£ß₧Çß₧╢ß₧Üß₧çßƒåß₧ôß₧╜ß₧Öß₧òßƒÆß₧ƒßƒüß₧äß₧æßƒÇß₧Å ß₧ƒß₧╝ß₧ÿß₧ößƒÆß₧Üß₧╢ß₧ößƒïß₧üßƒÆß₧ëß₧╗ßƒåß₧öß₧╢ß₧ôß₧éßƒÆß₧Üß₧ößƒïß₧ûßƒüß₧¢ßƒö`;
     } else if (isIdentity) {
-      fallbackAnswer = `ខ្ញុំជាជំនួយការ GuideMe AI។ ខ្ញុំអាចជួយណែនាំអ្នកមួយជំហានម្តងៗដោយបង្ហាញប៊ូតុង និងកន្លែងដែលត្រូវបំពេញនៅលើអេក្រង់ដោយផ្ទាល់!`;
+      fallbackAnswer = `ß₧üßƒÆß₧ëß₧╗ßƒåß₧çß₧╢ß₧çßƒåß₧ôß₧╜ß₧Öß₧Çß₧╢ß₧Ü GuideMe AIßƒö ß₧üßƒÆß₧ëß₧╗ßƒåß₧óß₧╢ß₧àß₧çß₧╜ß₧Öß₧Äßƒéß₧ôß₧╢ßƒåß₧óßƒÆß₧ôß₧Çß₧ÿß₧╜ß₧Öß₧çßƒåß₧áß₧╢ß₧ôß₧ÿßƒÆß₧Åß₧äßƒùß₧èßƒäß₧Öß₧öß₧äßƒÆß₧áß₧╢ß₧ëß₧ößƒèß₧╝ß₧Åß₧╗ß₧ä ß₧ôß₧╖ß₧äß₧Çß₧ôßƒÆß₧¢ßƒéß₧äß₧èßƒéß₧¢ß₧ÅßƒÆß₧Üß₧╝ß₧£ß₧ößƒåß₧ûßƒüß₧ëß₧ôßƒàß₧¢ß₧╛ß₧óßƒüß₧ÇßƒÆß₧Üß₧äßƒïß₧èßƒäß₧Öß₧òßƒÆß₧æß₧╢ß₧¢ßƒï!`;
     } else if (image) {
-      fallbackAnswer = `ខ្ញុំបានពិនិត្យមើលរូបភាព/អេក្រង់ដែលអ្នកបានភ្ជាប់រួចហើយ! ផ្អែកលើសំណួរ "${question}"៖ ខ្ញុំកំពុងបង្ហាញនិងបញ្ជាក់លើប៊ូតុងដែលពាក់ព័ន្ធនៅលើអេក្រង់របស់អ្នក។`;
+      fallbackAnswer = `ß₧üßƒÆß₧ëß₧╗ßƒåß₧öß₧╢ß₧ôß₧ûß₧╖ß₧ôß₧╖ß₧ÅßƒÆß₧Öß₧ÿß₧╛ß₧¢ß₧Üß₧╝ß₧öß₧ùß₧╢ß₧û/ß₧óßƒüß₧ÇßƒÆß₧Üß₧äßƒïß₧èßƒéß₧¢ß₧óßƒÆß₧ôß₧Çß₧öß₧╢ß₧ôß₧ùßƒÆß₧çß₧╢ß₧ößƒïß₧Üß₧╜ß₧àß₧áß₧╛ß₧Ö! ß₧òßƒÆß₧óßƒéß₧Çß₧¢ß₧╛ß₧ƒßƒåß₧Äß₧╜ß₧Ü "${question}"ßƒû ß₧üßƒÆß₧ëß₧╗ßƒåß₧Çßƒåß₧ûß₧╗ß₧äß₧öß₧äßƒÆß₧áß₧╢ß₧ëß₧ôß₧╖ß₧äß₧öß₧ëßƒÆß₧çß₧╢ß₧Çßƒïß₧¢ß₧╛ß₧ößƒèß₧╝ß₧Åß₧╗ß₧äß₧èßƒéß₧¢ß₧ûß₧╢ß₧Çßƒïß₧ûßƒÉß₧ôßƒÆß₧Æß₧ôßƒàß₧¢ß₧╛ß₧óßƒüß₧ÇßƒÆß₧Üß₧äßƒïß₧Üß₧öß₧ƒßƒïß₧óßƒÆß₧ôß₧Çßƒö`;
     } else if (isActionable) {
-      fallbackAnswer = `ខ្ញុំយល់ហើយ! ខ្ញុំកំពុងបង្ហាញនិងបញ្ជាក់លើប៊ូតុងនៅលើអេក្រង់របស់អ្នកដើម្បីជួយអ្នក "${question}"។`;
+      fallbackAnswer = `ß₧üßƒÆß₧ëß₧╗ßƒåß₧Öß₧¢ßƒïß₧áß₧╛ß₧Ö! ß₧üßƒÆß₧ëß₧╗ßƒåß₧Çßƒåß₧ûß₧╗ß₧äß₧öß₧äßƒÆß₧áß₧╢ß₧ëß₧ôß₧╖ß₧äß₧öß₧ëßƒÆß₧çß₧╢ß₧Çßƒïß₧¢ß₧╛ß₧ößƒèß₧╝ß₧Åß₧╗ß₧äß₧ôßƒàß₧¢ß₧╛ß₧óßƒüß₧ÇßƒÆß₧Üß₧äßƒïß₧Üß₧öß₧ƒßƒïß₧óßƒÆß₧ôß₧Çß₧èß₧╛ß₧ÿßƒÆß₧öß₧╕ß₧çß₧╜ß₧Öß₧óßƒÆß₧ôß₧Ç "${question}"ßƒö`;
     } else {
-      fallbackAnswer = `នេះជាព័ត៌មានទាក់ទងនឹង "${question}"។ ប្រសិនបើអ្នកចង់ឱ្យខ្ញុំបង្ហាញប៊ូតុង ឬការកំណត់ជាក់លាក់នៅលើអេក្រង់នេះ សូមប្រាប់ខ្ញុំបាន!`;
+      fallbackAnswer = `ß₧ôßƒüßƒçß₧çß₧╢ß₧ûßƒÉß₧Åßƒîß₧ÿß₧╢ß₧ôß₧æß₧╢ß₧Çßƒïß₧æß₧äß₧ôß₧╣ß₧ä "${question}"ßƒö ß₧ößƒÆß₧Üß₧ƒß₧╖ß₧ôß₧öß₧╛ß₧óßƒÆß₧ôß₧Çß₧àß₧äßƒïß₧▒ßƒÆß₧Öß₧üßƒÆß₧ëß₧╗ßƒåß₧öß₧äßƒÆß₧áß₧╢ß₧ëß₧ößƒèß₧╝ß₧Åß₧╗ß₧ä ß₧¼ß₧Çß₧╢ß₧Üß₧Çßƒåß₧Äß₧Åßƒïß₧çß₧╢ß₧Çßƒïß₧¢ß₧╢ß₧Çßƒïß₧ôßƒàß₧¢ß₧╛ß₧óßƒüß₧ÇßƒÆß₧Üß₧äßƒïß₧ôßƒüßƒç ß₧ƒß₧╝ß₧ÿß₧ößƒÆß₧Üß₧╢ß₧ößƒïß₧üßƒÆß₧ëß₧╗ßƒåß₧öß₧╢ß₧ô!`;
     }
 
     return {
@@ -577,12 +632,12 @@ For Greetings / Non-Actionable:
       intent: fallbackIntent,
       relatedTips: isGreeting
         ? [
-            "សួររបៀបប្រើប្រាស់មុខងារនានា",
-            "ស្នើសុំឱ្យបង្ហាញផ្លូវ ឬស្វែងរកប៊ូតុងនៅលើទំព័រ",
+            "ß₧ƒß₧╜ß₧Üß₧Üß₧ößƒÇß₧öß₧ößƒÆß₧Üß₧╛ß₧ößƒÆß₧Üß₧╢ß₧ƒßƒïß₧ÿß₧╗ß₧üß₧äß₧╢ß₧Üß₧ôß₧╢ß₧ôß₧╢",
+            "ß₧ƒßƒÆß₧ôß₧╛ß₧ƒß₧╗ßƒåß₧▒ßƒÆß₧Öß₧öß₧äßƒÆß₧áß₧╢ß₧ëß₧òßƒÆß₧¢ß₧╝ß₧£ ß₧¼ß₧ƒßƒÆß₧£ßƒéß₧äß₧Üß₧Çß₧ößƒèß₧╝ß₧Åß₧╗ß₧äß₧ôßƒàß₧¢ß₧╛ß₧æßƒåß₧ûßƒÉß₧Ü",
           ]
         : [
-            "ពិនិត្យសារកំហុសនៅលើរូបភាព ឬអេក្រង់",
-            "ចុចប៊ូតុងសំឡេងដើម្បីស្តាប់ការណែនាំជាភាសាខ្មែរ",
+            "ß₧ûß₧╖ß₧ôß₧╖ß₧ÅßƒÆß₧Öß₧ƒß₧╢ß₧Üß₧Çßƒåß₧áß₧╗ß₧ƒß₧ôßƒàß₧¢ß₧╛ß₧Üß₧╝ß₧öß₧ùß₧╢ß₧û ß₧¼ß₧óßƒüß₧ÇßƒÆß₧Üß₧äßƒï",
+            "ß₧àß₧╗ß₧àß₧ößƒèß₧╝ß₧Åß₧╗ß₧äß₧ƒßƒåß₧íßƒüß₧äß₧èß₧╛ß₧ÿßƒÆß₧öß₧╕ß₧ƒßƒÆß₧Åß₧╢ß₧ößƒïß₧Çß₧╢ß₧Üß₧Äßƒéß₧ôß₧╢ßƒåß₧çß₧╢ß₧ùß₧╢ß₧ƒß₧╢ß₧üßƒÆß₧ÿßƒéß₧Ü",
           ],
     };
   }
@@ -626,36 +681,36 @@ For Greetings / Non-Actionable:
 function generateFallbackGuide(prompt: string, category: string, language: string): AIGuideResponse {
   if (language === "km") {
     return {
-      title: `ការណែនាំ៖ ${prompt}`,
-      description: `ការណែនាំជាជំហានៗសម្រាប់ "${prompt}" ដែលបង្កើតឡើងដោយស្វ័យប្រវត្តិ។`,
+      title: `ß₧Çß₧╢ß₧Üß₧Äßƒéß₧ôß₧╢ßƒåßƒû ${prompt}`,
+      description: `ß₧Çß₧╢ß₧Üß₧Äßƒéß₧ôß₧╢ßƒåß₧çß₧╢ß₧çßƒåß₧áß₧╢ß₧ôßƒùß₧ƒß₧ÿßƒÆß₧Üß₧╢ß₧ößƒï "${prompt}" ß₧èßƒéß₧¢ß₧öß₧äßƒÆß₧Çß₧╛ß₧Åß₧íß₧╛ß₧äß₧èßƒäß₧Öß₧ƒßƒÆß₧£ßƒÉß₧Öß₧ößƒÆß₧Üß₧£ß₧ÅßƒÆß₧Åß₧╖ßƒö`,
       category,
       steps: [
         {
           stepNumber: 1,
-          title: "បើកផ្ទាំងកម្មវិធី",
-          instruction: "បើកកម្មវិធីដែលអ្នកចង់ប្រើ ហើយចូលទៅកាន់ផ្ទាំងដើម (Home screen)។",
-          hint: "ត្រូវប្រាកដថាអ្នកបានភ្ជាប់អ៊ីនធឺណិតរួចរាល់។",
+          title: "ß₧öß₧╛ß₧Çß₧òßƒÆß₧æß₧╢ßƒåß₧äß₧Çß₧ÿßƒÆß₧ÿß₧£ß₧╖ß₧Æß₧╕",
+          instruction: "ß₧öß₧╛ß₧Çß₧Çß₧ÿßƒÆß₧ÿß₧£ß₧╖ß₧Æß₧╕ß₧èßƒéß₧¢ß₧óßƒÆß₧ôß₧Çß₧àß₧äßƒïß₧ößƒÆß₧Üß₧╛ ß₧áß₧╛ß₧Öß₧àß₧╝ß₧¢ß₧æßƒàß₧Çß₧╢ß₧ôßƒïß₧òßƒÆß₧æß₧╢ßƒåß₧äß₧èß₧╛ß₧ÿ (Home screen)ßƒö",
+          hint: "ß₧ÅßƒÆß₧Üß₧╝ß₧£ß₧ößƒÆß₧Üß₧╢ß₧Çß₧èß₧Éß₧╢ß₧óßƒÆß₧ôß₧Çß₧öß₧╢ß₧ôß₧ùßƒÆß₧çß₧╢ß₧ößƒïß₧óßƒèß₧╕ß₧ôß₧Æß₧║ß₧Äß₧╖ß₧Åß₧Üß₧╜ß₧àß₧Üß₧╢ß₧¢ßƒïßƒö",
           targetElement: "nav-home",
         },
         {
           stepNumber: 2,
-          title: "ស្វែងរកប៊ូតុងមុខងារ",
-          instruction: `ស្វែងរកមុខងារទាក់ទងនឹង "${prompt}" នៅលើម៉ឺនុយ ឬរបារស្វែងរក។`,
-          hint: "សម្លឹងមើលរូបតំណាង (Icons) ដែលមានស្លាកឈ្មោះច្បាស់លាស់។",
+          title: "ß₧ƒßƒÆß₧£ßƒéß₧äß₧Üß₧Çß₧ößƒèß₧╝ß₧Åß₧╗ß₧äß₧ÿß₧╗ß₧üß₧äß₧╢ß₧Ü",
+          instruction: `ß₧ƒßƒÆß₧£ßƒéß₧äß₧Üß₧Çß₧ÿß₧╗ß₧üß₧äß₧╢ß₧Üß₧æß₧╢ß₧Çßƒïß₧æß₧äß₧ôß₧╣ß₧ä "${prompt}" ß₧ôßƒàß₧¢ß₧╛ß₧ÿßƒëß₧║ß₧ôß₧╗ß₧Ö ß₧¼ß₧Üß₧öß₧╢ß₧Üß₧ƒßƒÆß₧£ßƒéß₧äß₧Üß₧Çßƒö`,
+          hint: "ß₧ƒß₧ÿßƒÆß₧¢ß₧╣ß₧äß₧ÿß₧╛ß₧¢ß₧Üß₧╝ß₧öß₧Åßƒåß₧Äß₧╢ß₧ä (Icons) ß₧èßƒéß₧¢ß₧ÿß₧╢ß₧ôß₧ƒßƒÆß₧¢ß₧╢ß₧Çß₧êßƒÆß₧ÿßƒäßƒçß₧àßƒÆß₧öß₧╢ß₧ƒßƒïß₧¢ß₧╢ß₧ƒßƒïßƒö",
           targetElement: "search-input",
         },
         {
           stepNumber: 3,
-          title: "បំពេញព័ត៌មានដែលត្រូវការ",
-          instruction: "វាយបញ្ចូលព័ត៌មានតាមការណែនាំនៅលើអេក្រង់ ហើយពិនិត្យឡើងវិញដោយប្រុងប្រយ័ត្ន។",
-          hint: "កុំចែករំលែកលេខសម្ងាត់ (PIN/Password) ទៅកាន់អ្នកដទៃ។",
+          title: "ß₧ößƒåß₧ûßƒüß₧ëß₧ûßƒÉß₧Åßƒîß₧ÿß₧╢ß₧ôß₧èßƒéß₧¢ß₧ÅßƒÆß₧Üß₧╝ß₧£ß₧Çß₧╢ß₧Ü",
+          instruction: "ß₧£ß₧╢ß₧Öß₧öß₧ëßƒÆß₧àß₧╝ß₧¢ß₧ûßƒÉß₧Åßƒîß₧ÿß₧╢ß₧ôß₧Åß₧╢ß₧ÿß₧Çß₧╢ß₧Üß₧Äßƒéß₧ôß₧╢ßƒåß₧ôßƒàß₧¢ß₧╛ß₧óßƒüß₧ÇßƒÆß₧Üß₧äßƒï ß₧áß₧╛ß₧Öß₧ûß₧╖ß₧ôß₧╖ß₧ÅßƒÆß₧Öß₧íß₧╛ß₧äß₧£ß₧╖ß₧ëß₧èßƒäß₧Öß₧ößƒÆß₧Üß₧╗ß₧äß₧ößƒÆß₧Üß₧ÖßƒÉß₧ÅßƒÆß₧ôßƒö",
+          hint: "ß₧Çß₧╗ßƒåß₧àßƒéß₧Çß₧Üßƒåß₧¢ßƒéß₧Çß₧¢ßƒüß₧üß₧ƒß₧ÿßƒÆß₧äß₧╢ß₧Åßƒï (PIN/Password) ß₧æßƒàß₧Çß₧╢ß₧ôßƒïß₧óßƒÆß₧ôß₧Çß₧èß₧æßƒâßƒö",
           targetElement: "form-input",
         },
         {
           stepNumber: 4,
-          title: "ចុចបញ្ជាក់ដើម្បីបញ្ចប់",
-          instruction: "ចុចប៊ូតុង 'យល់ព្រម' ឬ 'បន្ត' ដើម្បីបញ្ចប់ប្រតិបត្តិការដោយជោគជ័យ។",
-          hint: "អ្នកអាចថតអេក្រង់ទុកជាភស្តុតាង។",
+          title: "ß₧àß₧╗ß₧àß₧öß₧ëßƒÆß₧çß₧╢ß₧Çßƒïß₧èß₧╛ß₧ÿßƒÆß₧öß₧╕ß₧öß₧ëßƒÆß₧àß₧ößƒï",
+          instruction: "ß₧àß₧╗ß₧àß₧ößƒèß₧╝ß₧Åß₧╗ß₧ä 'ß₧Öß₧¢ßƒïß₧ûßƒÆß₧Üß₧ÿ' ß₧¼ 'ß₧öß₧ôßƒÆß₧Å' ß₧èß₧╛ß₧ÿßƒÆß₧öß₧╕ß₧öß₧ëßƒÆß₧àß₧ößƒïß₧ößƒÆß₧Üß₧Åß₧╖ß₧öß₧ÅßƒÆß₧Åß₧╖ß₧Çß₧╢ß₧Üß₧èßƒäß₧Öß₧çßƒäß₧éß₧çßƒÉß₧Ößƒö",
+          hint: "ß₧óßƒÆß₧ôß₧Çß₧óß₧╢ß₧àß₧Éß₧Åß₧óßƒüß₧ÇßƒÆß₧Üß₧äßƒïß₧æß₧╗ß₧Çß₧çß₧╢ß₧ùß₧ƒßƒÆß₧Åß₧╗ß₧Åß₧╢ß₧äßƒö",
           targetElement: "btn-confirm",
         },
       ],
@@ -759,7 +814,7 @@ Requirements:
      }
      Our Just-in-Time (JIT) runtime engine uses MutationObserver to attach to the target the millisecond the parent menu is opened.
 2. Universal Multi-Step Menu Rule:
-   - If reaching the goal requires navigating through a menu, dropdown, sidebar, or dialog (e.g. File → Page Setup, Settings → General, Actions → Export):
+   - If reaching the goal requires navigating through a menu, dropdown, sidebar, or dialog (e.g. File ΓåÆ Page Setup, Settings ΓåÆ General, Actions ΓåÆ Export):
      You MUST generate a separate, sequential step for EACH level:
      - Step 1: Open the parent menu/container (e.g. Click "File").
      - Step 2: Click the nested submenu item (e.g. Click "Page setup").
@@ -805,7 +860,7 @@ ${JSON.stringify(elements.slice(0, 80), null, 2)}
 
 Generate the interactive tutorial JSON now.`;
 
-  // ── 0. Try OpenRouter Universal AI Gateway (Top Priority) ──
+  // ΓöÇΓöÇ 0. Try OpenRouter Universal AI Gateway (Top Priority) ΓöÇΓöÇ
   const openRouter = getOpenRouterConfig();
   if (openRouter) {
     try {
@@ -849,7 +904,7 @@ Generate the interactive tutorial JSON now.`;
     }
   }
 
-  // ── 1. Try Gemini API (Primary Sub-second Provider) ──
+  // ΓöÇΓöÇ 1. Try Gemini API (Primary Sub-second Provider) ΓöÇΓöÇ
   if (geminiKeys.length > 0) {
     for (const geminiApiKey of geminiKeys) {
       try {
@@ -891,7 +946,7 @@ Generate the interactive tutorial JSON now.`;
 
 
 
-  // ── 3. Heuristic / Template Fallback ──
+  // ΓöÇΓöÇ 3. Heuristic / Template Fallback ΓöÇΓöÇ
   return hardenAndValidateTutorial({}, elements, prompt);
 }
 
@@ -1012,3 +1067,305 @@ export async function rerankIntentCandidates(
   };
 }
 
+
+export interface ValidatedIntent {
+  valid: boolean;
+  reason?: string;
+  pages?: {
+    route: "current" | string;
+    action: string;
+    target?: string;
+    description: string;
+  }[];
+}
+
+/**
+ * Stage 1: Validates user intent via LLM and optionally plans multi-page steps.
+ * Uses OpenRouter first, Gemini fallback. If both fail, asks the user to clarify.
+ */
+export async function validateIntent(
+  prompt: string,
+  currentUrl: string = "",
+  language: string = "km"
+): Promise<ValidatedIntent> {
+  const openrouterKey = (process.env.OPENROUTER_API_KEY || process.env.WXT_AI_API_KEY || "").trim();
+  const geminiKeys = getOrderedGeminiApiKeys();
+
+  // Quick-pass: known greeting patterns → skip LLM entirely
+  const trimmed = prompt.trim().toLowerCase();
+  const greetings = /^(hi|hello|hey|yo|sup|howdy|hiya|good\s*(morning|afternoon|evening)|សួស្ដី|ជំរាបសួរ|ហេឡូ|ហាយ)[\s!.,។?]*$/i;
+  if (greetings.test(trimmed)) {
+    const reply = language === "km"
+      ? "សួស្ដី! តើអ្នកចង់ឱ្យខ្ញុំជួយអ្វីលើទំព័រនេះ?"
+      : "Hi! What would you like help with on this page?";
+    return { valid: false, reason: reply, pages: [] };
+  }
+
+  // Quick-pass: known unclear patterns → skip LLM
+  const unclear = /^(help|help me|do something|please|ok|okay|yes|no|thanks|thank you|idk|hmm|huh|what|why|how|show me|tell me|guide me|ជួយ|សូម|អរគុណ|អ្វី|ហេតុអ្វី)[\s!.,។?]*$/i;
+  if (unclear.test(trimmed)) {
+    const reply = language === "km"
+      ? "សូមបញ្ជាក់អ្វីដែលអ្នកចង់ធ្វើ ឧទាហរណ៍៖ \"ចុចប៊ូតុង Login\""
+      : "Please specify what you want to do. Example: \"Click the Login button\"";
+    return { valid: false, reason: reply, pages: [] };
+  }
+
+  // Quick-pass: known action verbs → skip LLM, assume valid
+  const actionVerbs = /\b(click|press|tap|open|go\s*to|navigate|search|find|type|enter|fill|submit|save|buy|add|remove|delete|edit|create|sign\s*in|log\s*in|sign\s*up|register|checkout|download|upload|share|invite|send|select|choose|export|import|print|scroll|help\s*me\s*(share|click|open|find|search|login|edit)|how\s*to|i\s*want\s*to|i\s*need\s*to|ចុច|បើក|ទៅ|ស្វែងរក|វាយ|បញ្ចូល|រក្សាទុក|ទិញ|បន្ថែម|លុប|កែ|បង្កើត|ចូល|ចុះឈ្មោះ|ទាញយក|ផ្ញើ|ជ្រើសរើស|មើល|ចែករំលែក|កំណត់|ជួយ\s*(ខ្ញុំ)?\s*(ចែករំលែក|រក|បើក|ចុច|ផ្ញើ|បង្កើត|កែ|ចូល))\b/i;
+  if (actionVerbs.test(prompt)) {
+    return { valid: true, reason: "", pages: [{ route: "current", action: "user_intent", target: "", description: prompt }] };
+  }
+
+  const lang = language === "km" ? "Khmer" : "English";
+  const systemPrompt = `You validate user intents for GuideMe, a browser tutorial assistant. Respond as JSON.
+
+Rules:
+- User can type Khmer/English/mixed with typos. Be tolerant.
+- If the request is about doing something on a webpage → valid: true, plan pages needed (usually one page with route "current").
+- If greeting, chit-chat, or gibberish → valid: false, reason in ${lang} suggesting what to ask.
+
+Schema:
+{"valid":boolean,"reason":"string in ${lang}","pages":[{"route":"current","action":"string","target":"","description":"string"}]}`;
+
+  const userMessage = JSON.stringify({ prompt, currentUrl, language });
+
+  // Try OpenRouter first
+  if (openrouterKey) {
+    const openRouter = getOpenRouterConfig();
+    if (openRouter) {
+      try {
+        const controller = new AbortController();
+        // 7-second timeout — leaves 1 second buffer before extension's 8-second client timeout.
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
+        const response = await fetch(openRouter.endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${openRouter.apiKey}`,
+            "HTTP-Referer": "https://guideme.cadt.edu.kh",
+            "X-Title": "GuideMe Interactive Walkthrough",
+          },
+          body: JSON.stringify({
+            model: openRouter.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userMessage },
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.1,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data: any = await response.json();
+          const jsonText = data.choices?.[0]?.message?.content;
+          if (jsonText) {
+            const parsed = JSON.parse(cleanJsonResponse(jsonText));
+            if (typeof parsed.valid === "boolean") return parsed;
+          }
+        }
+      } catch (err: any) {
+        console.warn("[AI Service] OpenRouter validate-intent failed:", err?.message);
+      }
+    }
+  }
+
+  // Fallback: Gemini rotating pool
+  if (geminiKeys.length > 0) {
+    for (const geminiApiKey of geminiKeys) {
+      try {
+        const model = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: `${systemPrompt}\n\n${userMessage}` }] }],
+              generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
+            }),
+            signal: AbortSignal.timeout(Number(process.env.GEMINI_TIMEOUT_MS) || 7000),
+          }
+        );
+
+        if (response.ok) {
+          const data: any = await response.json();
+          const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (jsonText) {
+            const parsed = JSON.parse(cleanJsonResponse(jsonText));
+            if (typeof parsed.valid === "boolean") return parsed;
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[AI Service] Gemini key ...${geminiApiKey.slice(-6)} validate-intent failed:`, err?.message);
+      }
+    }
+  }
+
+  // No LLM available — ask user to be more specific
+  const retryMsg = language === "km"
+    ? "សូមអភ័យទោស ខ្ញុំមិនអាចផ្ទៀងផ្ទាត់សំណើរបស់អ្នកបានទេ។ សូមព្យាយាមម្តងទៀត ឧទាហរណ៍៖ \"ចុចប៊ូតុង Login\" ឬ \"how to change password\""
+    : "Sorry, I couldn't validate your request. Please try again or be more specific. For example: \"click the Login button\" or \"how to change password\"";
+  return { valid: false, reason: retryMsg, pages: [] };
+}
+
+/**
+ * Stage 2: Generates structured step-by-step tutorial from a prompt + DOM elements.
+ * Uses LLM (OpenRouter → Gemini) to reason about which elements to target and in what order.
+ */
+export async function generateSteps(
+  prompt: string,
+  elements: DomElementSummary[],
+  language: string = "km",
+  currentUrl: string = "",
+  options: { mode?: "initial" | "next_action"; completedActions?: string[] } = {}
+): Promise<GenerateStepsResponse | null> {
+  const geminiKeys = getOrderedGeminiApiKeys();
+
+  const domPreview = elements.slice(0, 100).map((el) => ({
+    tag: el.tag,
+    id: el.id || undefined,
+    text: (el.text || "").slice(0, 40),
+    type: el.type || undefined,
+    role: el.role || undefined,
+    ariaLabel: el.ariaLabel || undefined,
+    placeholder: el.placeholder || undefined,
+    selector: el.selector || undefined,
+    isVisible: el.isVisible !== false,
+  }));
+
+  const isContinuation = options.mode === "next_action";
+  const completedActions = Array.isArray(options.completedActions) ? options.completedActions : [];
+
+  const systemPrompt = `You are an expert step-by-step tutorial generator for GuideMe, a browser assistant.
+Your job: ${isContinuation
+    ? "inspect the CURRENT DOM state and produce exactly the next action needed to continue the user's goal. Do not plan hidden future actions."
+    : "take the user's goal and produce the COMPLETE list of steps needed to accomplish that goal from start to finish. Never collapse a workflow into one step."}
+
+CRITICAL DECOMPOSITION RULES:
+- Break the user's goal into EVERY micro-action a person must perform. Output ONE step per micro-action.
+- Example — "create a new file": step 1: click/hover "File" menu, step 2: click "New", step 3: click "Blank document", step 4: (if a name field appears) type the file name, step 5: click "Create"/"OK". That is 4-5 steps.
+- Example — "log in": step 1: click "Sign in", step 2: enter email, step 3: click "Next", step 4: enter password, step 5: click submit. That is 5 steps.
+- A goal is only complete when its final action is performed, so include EVERY intermediate step.
+
+When choosing targets:
+- Prefer the exact CSS selector from the provided element list when a matching element exists.
+- If an intermediate action has no element in the provided list (e.g. a sub-menu that only appears after hovering), STILL emit the step with a best-effort CSS selector or the visible label text.
+- Generate clear instructions in ${language === "km" ? "Khmer" : "English"}.
+- For input fields, validation type = "input". For buttons/links, "click". For dropdowns, "change".
+
+Return ONLY valid JSON matching this schema:
+{
+  "tutorial": {
+    "id": "llm-guide-{timestamp}",
+    "version": "1.0.0",
+    "name": "Short title in ${language === "km" ? "Khmer" : "English"}",
+    "description": "Brief summary in ${language === "km" ? "Khmer" : "English"}",
+    "steps": [
+      {
+        "id": "step-1",
+        "title": "Step 1 title",
+        "description": "Step 1 description",
+        "target": { "css": "button#submit-btn", "text": "Submit" },
+        "action": { "type": "spotlight", "title": "Click Submit", "content": "Click the Submit button", "placement": "bottom" },
+        "validation": { "type": "click" }
+      }
+    ]
+  }
+}
+
+${isContinuation
+    ? 'For continuation mode, return exactly one step in "tutorial.steps". If the goal is already complete, return {"done":true,"tutorial":{"steps":[]}}.'
+    : "Generate as many steps as the workflow genuinely needs."}`;
+
+  const userMessage = JSON.stringify({
+    goal: prompt,
+    pageUrl: currentUrl,
+    language,
+    mode: options.mode || "initial",
+    completedActions,
+    elements: domPreview,
+  });
+
+  // Try OpenRouter first
+  const openRouter = getOpenRouterConfig();
+  if (openRouter) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), openRouter.timeoutMs);
+      const response = await fetch(openRouter.endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openRouter.apiKey}`,
+          "HTTP-Referer": "https://guideme.cadt.edu.kh",
+          "X-Title": "GuideMe Interactive Walkthrough",
+        },
+        body: JSON.stringify({
+          model: openRouter.model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data: any = await response.json();
+        const jsonText = data.choices?.[0]?.message?.content;
+        if (jsonText) {
+          const parsed = JSON.parse(cleanJsonResponse(jsonText));
+          if (parsed?.done === true) {
+            return { done: true, tutorial: { id: `llm-guide-done-${Date.now()}`, version: "1.0.0", name: "Completed", description: "The requested workflow is complete.", steps: [] } };
+          }
+          if (parsed?.tutorial?.steps?.length > 0) return parsed;
+        }
+      }
+    } catch (err: any) {
+      console.warn("[AI Service] OpenRouter generate-steps failed, trying Gemini:", err?.message);
+    }
+  }
+
+  // Fallback: Gemini rotating pool
+  if (geminiKeys.length > 0) {
+    for (const geminiApiKey of geminiKeys) {
+      try {
+        const model = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: `${systemPrompt}\n\nPage Elements:\n${userMessage}` }] }],
+              generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
+            }),
+            signal: AbortSignal.timeout(Number(process.env.GEMINI_TIMEOUT_MS) || 12000),
+          }
+        );
+
+        if (response.ok) {
+          const data: any = await response.json();
+          const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (jsonText) {
+            const parsed = JSON.parse(cleanJsonResponse(jsonText));
+            if (parsed?.done === true) {
+              return { done: true, tutorial: { id: `llm-guide-done-${Date.now()}`, version: "1.0.0", name: "Completed", description: "The requested workflow is complete.", steps: [] } };
+            }
+            if (parsed?.tutorial?.steps?.length > 0) return parsed;
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[AI Service] Gemini key ...${geminiApiKey.slice(-6)} generate-steps failed:`, err?.message);
+      }
+    }
+  }
+
+  return null;
+}
