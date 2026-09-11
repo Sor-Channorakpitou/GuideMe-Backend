@@ -38,5 +38,6 @@ export function auth(req: AuthRequest, res: Response, next: NextFunction): void 
     next();
   } catch {
     res.status(401).json({ error: { message: "Invalid token", code: "UNAUTHORIZED" } });
+    return;
   }
 }
