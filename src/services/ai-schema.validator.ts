@@ -205,57 +205,35 @@ export function disambiguateAndHardenSteps(
       const stepTitleText = typeof rawStep.title === "object" ? `${rawStep.title?.en || ""} ${rawStep.title?.km || ""}` : (rawStep.title || "");
       const searchKeywords = `${targetText} ${targetAria} ${primaryCss} ${stepTitleText} ${fallbackPrompt}`.toLowerCase();
 
-      // Heuristic 2a: Exact or case-insensitive text match
+      // Heuristic 2a: Exact or case-insensitive text match with current visible candidates
       let heuristicMatch = candidates.find((c) => {
         if (!c.text || !targetText) return false;
         return c.text.trim().toLowerCase() === targetText.trim().toLowerCase();
       });
 
-      // Heuristic 2b: Aria-label or name match
+      // Heuristic 2b: Exact or substring aria-label match
       if (!heuristicMatch && targetAria) {
-        heuristicMatch = candidates.find((c) => c.ariaLabel && c.ariaLabel.toLowerCase().includes(targetAria.toLowerCase()));
-      }
-
-      // Heuristic 2c: Search keywords inside candidate text or attributes
-      if (!heuristicMatch) {
-        heuristicMatch = candidates.find((c) => {
-          const cText = (c.text || "").toLowerCase();
-          const cAria = (c.ariaLabel || "").toLowerCase();
-          return (
-            (cText.length > 2 && searchKeywords.includes(cText)) ||
-            (cAria.length > 2 && searchKeywords.includes(cAria)) ||
-            (targetText && (cText.includes(targetText.toLowerCase()) || cAria.includes(targetText.toLowerCase())))
-          );
-        });
-      }
-
-      // Heuristic 2d: Type / role compatibility
-      if (!heuristicMatch) {
-        const isInputStep = rawStep.validation?.type === "input" || /type|input|fill|enter/i.test(stepTitleText);
-        if (isInputStep) {
-          heuristicMatch = candidates.find((c) => c.tag === "input" || c.tag === "textarea");
-        } else {
-          heuristicMatch = candidates.find((c) => c.tag === "button" || c.role === "button" || c.tag === "a");
-        }
+        heuristicMatch = candidates.find((c) => c.ariaLabel && c.ariaLabel.toLowerCase().trim() === targetAria.toLowerCase().trim());
       }
 
       if (heuristicMatch) {
-        // Replace non-existent primary selector with verified candidate selector
-        fallbackCss = primaryCss;
+        // Candidate is visibly present right now: enrich with exact DOM candidate locators
         primaryCss = heuristicMatch.selector;
         targetText = targetText || heuristicMatch.text || "";
         targetAria = targetAria || heuristicMatch.ariaLabel || "";
         targetTestId = targetTestId || heuristicMatch.testId || "";
-        description = `[${heuristicMatch.tag.toUpperCase()}] ${heuristicMatch.text || heuristicMatch.ariaLabel || heuristicMatch.selector} (Recovered from: ${fallbackCss})`;
+        description = `[${heuristicMatch.tag.toUpperCase()}] ${heuristicMatch.text || heuristicMatch.ariaLabel || heuristicMatch.selector}`;
         const generatedAlts = buildSelectorAlternatives(heuristicMatch);
-        alternatives = Array.from(new Set([...alternatives, ...generatedAlts, fallbackCss].filter(Boolean)));
+        alternatives = Array.from(new Set([...alternatives, ...generatedAlts].filter(Boolean)));
       } else {
-        // Fallback description when no DOM candidate matches
-        description = description || `Target element: ${targetText || primaryCss || "Interactive button or field"}`;
+        // Target is not yet visible in initial snapshot (e.g. nested menuitem, dropdown option, or modal control).
+        // PRESERVE the AI's intended semantic selector and targetText for Just-In-Time (JIT) dynamic grounding!
+        description = description || `Target control: ${targetText || targetAria || primaryCss || "Menu item or action"}`;
         if (primaryCss) {
           alternatives.push(primaryCss);
         }
         if (targetText) {
+          alternatives.push(`[role="menuitem"]:has-text("${targetText.slice(0, 30)}")`);
           alternatives.push(`button:has-text("${targetText.slice(0, 30)}")`);
         }
       }
@@ -341,7 +319,10 @@ export function hardenAndValidateTutorial(
 
   // If no valid steps after disambiguation, construct safe baseline steps from candidates
   if (steps.length === 0 && candidates.length > 0) {
-    const firstElem = candidates[0];
+    // Exclude brand/home navigation icons that navigate away from the current page
+    const pool = candidates.filter((c) => !/docs-homescreen|home|logo|brand/i.test(c.ariaLabel || c.selector || c.text || ''));
+    const candidatesPool = pool.length > 0 ? pool : candidates;
+    const firstElem = candidatesPool.find((c) => /file|menu|share|action|edit/i.test(c.text || c.ariaLabel || '')) || candidatesPool[0];
     steps = [
       {
         id: "step_1",

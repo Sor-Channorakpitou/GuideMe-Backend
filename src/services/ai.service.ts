@@ -289,7 +289,6 @@ export async function askContextualAssistant(
   language = "km",
   image?: string
 ): Promise<{ answer: string; triggerGuide: boolean; intentPrompt?: string; intent?: AssistantIntentInstruction | null; relatedTips?: string[] }> {
-  const nvidiaApiKey = process.env.NVIDIA_API_KEY;
   const geminiKeys = getOrderedGeminiApiKeys();
 
   let imageInlineData: { mimeType: string; data: string } | null = null;
@@ -490,69 +489,6 @@ For Greetings / Non-Actionable:
     }
   }
 
-  // 3. Fallback: Try NVIDIA AI NIM (Kimi-K3 or Vision)
-  if (nvidiaApiKey) {
-    try {
-      const endpoint = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1/chat/completions";
-      const model = process.env.NVIDIA_MODEL || "moonshotai/kimi-k3";
-
-      const userContent = image
-        ? [
-            { type: "text", text: question },
-            {
-              type: "image_url",
-              image_url: {
-                url: image.startsWith("data:") ? image : `data:image/png;base64,${image}`,
-              },
-            },
-          ]
-        : question;
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${nvidiaApiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent },
-          ],
-          temperature: 0.2,
-          max_tokens: 1024,
-        }),
-        signal: AbortSignal.timeout(Number(process.env.NVIDIA_TIMEOUT_MS) || 2500),
-      });
-
-      if (response.ok) {
-        const data: any = await response.json();
-        const contentText = data.choices?.[0]?.message?.content;
-        if (contentText) {
-          const cleaned = cleanJsonResponse(contentText);
-          const parsed = JSON.parse(cleaned);
-          const validated = ContextualAssistantResponseSchema.safeParse(parsed);
-          if (validated.success) {
-            const isActionable = validated.data.triggerGuide;
-            let finalIntent = validated.data.intent as AssistantIntentInstruction | null;
-            if (isActionable && !finalIntent) {
-              finalIntent = extractIntentFromPrompt(question, validated.data.intentPrompt);
-            }
-            return {
-              answer: validated.data.answer,
-              triggerGuide: isActionable,
-              intentPrompt: validated.data.intentPrompt || (isActionable ? question : undefined),
-              intent: finalIntent,
-              relatedTips: validated.data.relatedTips,
-            };
-          }
-        }
-      }
-    } catch (err: any) {
-      console.warn("[AI Assistant] NVIDIA NIM failed, using smart fallback:", err?.message);
-    }
-  }
 
   // 3. Smart Heuristic Fallback (Offline / Failover)
   const isGreeting =
@@ -792,7 +728,7 @@ export interface DomCandidate {
 
 /**
  * Generates an interactive GuideMe walkthrough schema from live webpage DOM elements
- * using NVIDIA AI NIM (moonshotai/kimi-k3) or Google Gemini.
+ * using OpenRouter (Universal AI Gateway) or Google Gemini.
  */
 export async function generateDomGuideSteps(params: {
   prompt: string;
@@ -806,21 +742,40 @@ export async function generateDomGuideSteps(params: {
     throw new Error("No interactive DOM elements provided for AI analysis.");
   }
 
-  const nvidiaApiKey = process.env.NVIDIA_API_KEY;
   const geminiKeys = getOrderedGeminiApiKeys();
 
   const systemInstruction = `You are GuideMe AI, an expert interactive web walkthrough and DOM guidance engine.
 Your mission is to inspect the provided interactive DOM elements from a webpage and the user's intent, and generate a step-by-step interactive tutorial flow adhering strictly to GuideMe's JSON schema.
 
 Requirements:
-1. Select ONLY elements from the provided interactive DOM elements list.
-2. For each step:
+1. Element Selection & Universal Multi-Step Planning:
+   - For currently visible elements, select their selectors and labels from the provided interactive DOM elements list.
+   - For nested submenu items, settings, or workflow actions that only render after opening a menu or modal (e.g. "Page setup" inside "File", "Billing" in "Settings", "Download" in an "Actions" menu):
+     Generate the step using universal semantic targets:
+     "target": {
+       "css": "[role=\"menuitem\"], button, a, [role=\"button\"], span",
+       "text": "<Exact name of submenu item or button>",
+       "ariaLabel": "<Exact name of submenu item or button>"
+     }
+     Our Just-in-Time (JIT) runtime engine uses MutationObserver to attach to the target the millisecond the parent menu is opened.
+2. Universal Multi-Step Menu Rule:
+   - If reaching the goal requires navigating through a menu, dropdown, sidebar, or dialog (e.g. File → Page Setup, Settings → General, Actions → Export):
+     You MUST generate a separate, sequential step for EACH level:
+     - Step 1: Open the parent menu/container (e.g. Click "File").
+     - Step 2: Click the nested submenu item (e.g. Click "Page setup").
+     - Step 3+: Configure options in the modal or dialog if requested (e.g. Select "A4").
+   - NEVER skip the parent menu and jump straight to a hidden submenu item.
+   - NEVER target irrelevant navigation logos (like "Docs home") when the user asked for an in-app action.
+3. For each step:
    - "id": unique string identifier (e.g. "step_1", "step_2")
+   - "title": Bilingual object { "km": "...", "en": "..." } (REQUIRED at step root)
+   - "description": Bilingual object { "km": "...", "en": "..." }
    - "target": {
-       "css": exact CSS selector from the candidate list (e.g. "#search-box", ".login-btn"),
+       "css": exact CSS selector from candidate list or universal fallback,
        "text": element text if present,
        "ariaLabel": ariaLabel if present,
-       "testId": testId if present
+       "testId": testId if present,
+       "container": "[role=\"dialog\"], .modal-dialog" (when targeting controls inside an open modal)
      }
    - "action": {
        "type": "spotlight",
@@ -831,12 +786,10 @@ Requirements:
    - "validation": {
        "type": "click" | "input" | "change" | "submit" | "manual_next"
      }
-   - "title": Bilingual object { "km": "...", "en": "..." }
-   - "description": Bilingual object { "km": "...", "en": "..." }
-3. GuideMe is Khmer-First: "km" (Khmer) must be natural, accurate, and beginner-friendly. "en" (English) is secondary.
-4. Output MUST be ONLY pure valid JSON (no surrounding markdown text, no conversational filler) matching:
+4. GuideMe is Khmer-First: "km" (Khmer) must be natural, accurate, and beginner-friendly. "en" (English) is secondary.
+5. Output MUST be ONLY pure valid JSON (no surrounding markdown text, no conversational filler) matching:
 {
-  "id": "nvidia-guide-${Date.now()}",
+  "id": "guide-${Date.now()}",
   "version": "1.0.0",
   "name": { "km": "...", "en": "..." },
   "description": { "km": "...", "en": "..." },
@@ -936,48 +889,7 @@ Generate the interactive tutorial JSON now.`;
     }
   }
 
-  // ── 2. Fallback: Try NVIDIA AI NIM ──
-  if (nvidiaApiKey) {
-    try {
-      const endpoint = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1/chat/completions";
-      const model = process.env.NVIDIA_MODEL || "moonshotai/kimi-k3";
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${nvidiaApiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemInstruction },
-            { role: "user", content: userContent },
-          ],
-          temperature: 0.2,
-          max_tokens: 4096,
-          stream: false,
-        }),
-      });
-
-      if (response.ok) {
-        const data: any = await response.json();
-        const contentText = data.choices?.[0]?.message?.content;
-        if (contentText) {
-          const cleaned = cleanJsonResponse(contentText);
-          const parsed = JSON.parse(cleaned);
-          if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
-            return hardenAndValidateTutorial(parsed, elements, prompt);
-          }
-        }
-      } else {
-        const errText = await response.text().catch(() => "");
-        console.warn(`[AI Service] NVIDIA NIM returned HTTP ${response.status}:`, errText.slice(0, 200));
-      }
-    } catch (err: any) {
-      console.warn("[AI Service] NVIDIA NIM fallback generation error:", err?.message);
-    }
-  }
 
   // ── 3. Heuristic / Template Fallback ──
   return hardenAndValidateTutorial({}, elements, prompt);
@@ -991,7 +903,6 @@ export async function rerankIntentCandidates(
     return { stepIds: [] };
   }
 
-  const nvidiaApiKey = process.env.NVIDIA_API_KEY;
   const geminiKeys = getOrderedGeminiApiKeys();
 
   const systemPrompt =
@@ -1093,49 +1004,7 @@ export async function rerankIntentCandidates(
     }
   }
 
-  // 2. Fallback: Try NVIDIA NIM
-  if (nvidiaApiKey) {
-    try {
-      const endpoint = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1/chat/completions";
-      const model = process.env.NVIDIA_MODEL || "moonshotai/kimi-k3";
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${nvidiaApiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-          temperature: 0.1,
-          max_tokens: 512,
-        }),
-      });
-
-      if (response.ok) {
-        const data: any = await response.json();
-        const contentText = data.choices?.[0]?.message?.content;
-        if (contentText) {
-          const cleaned = cleanJsonResponse(contentText);
-          const parsed = JSON.parse(cleaned);
-          const validated = IntentRerankResponseSchema.safeParse(parsed);
-          if (validated.success && Array.isArray(validated.data.stepIds)) {
-            const validIds = new Set(candidates.map((c) => c.id));
-            const filtered = validated.data.stepIds.filter((id: string) => validIds.has(id));
-            if (filtered.length > 0) {
-              return { stepIds: filtered };
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("[AI Service] NVIDIA NIM reranking failed, using fallback ranking:", err);
-    }
-  }
 
   // Fallback: Return top candidates up to 3
   return {
