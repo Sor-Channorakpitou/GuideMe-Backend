@@ -13,6 +13,16 @@ import { errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
 
+// ── Process-level crash prevention ──
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Unhandled rejection:", reason instanceof Error ? reason.message : reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err.message);
+  // Give logger time to flush, then exit hard
+  setTimeout(() => process.exit(1), 1000).unref();
+});
+
 // 1. Define allowed web domains
 const allowedWebOrigins = [
   env.CLIENT_URL,
@@ -27,7 +37,21 @@ const PRODUCTION_EXTENSION_ID = process.env.EXTENSION_ID || "gkkgcgloiohdceccgep
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
-    // Universal Tutorial Engine requires cross-origin access from any website where the extension runs.
+    // Allow non-browser calls (Postman, server-to-server, cURL, integration tests)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    // A. Check against verified web origins (web app frontends)
+    if (allowedWebOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // B. Chrome Extension content scripts run in the host page's origin
+    // (e.g. https://docs.google.com), not a chrome-extension:// origin.
+    // Since the extension may be active on any arbitrary website, blanket
+    // CORS allow is required. Sensitive endpoints are individually
+    // protected by the JWT auth middleware.
     return callback(null, true);
   },
   credentials: true,
