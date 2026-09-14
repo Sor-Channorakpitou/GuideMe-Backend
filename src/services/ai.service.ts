@@ -1,4 +1,4 @@
-﻿import {
+import {
   hardenAndValidateTutorial,
   AIGuideResponseSchema,
   IntentRerankResponseSchema,
@@ -856,7 +856,7 @@ Requirements:
 User Request / Goal: "${prompt}"
 
 Interactive DOM Elements on page:
-${JSON.stringify(elements.slice(0, 80), null, 2)}
+${JSON.stringify(elements.slice(0, 400), null, 2)}
 
 Generate the interactive tutorial JSON now.`;
 
@@ -1224,7 +1224,7 @@ export async function generateSteps(
 ): Promise<GenerateStepsResponse | null> {
   const geminiKeys = getOrderedGeminiApiKeys();
 
-  const domPreview = elements.slice(0, 100).map((el) => ({
+  const domPreview = elements.slice(0, 400).map((el) => ({
     tag: el.tag,
     id: el.id || undefined,
     text: (el.text || "").slice(0, 40),
@@ -1255,7 +1255,7 @@ When choosing targets:
 - If an intermediate action has no element in the provided list (e.g. a sub-menu that only appears after hovering), STILL emit the step with a best-effort CSS selector or the visible label text.
 - Generate clear instructions in ${language === "km" ? "Khmer" : "English"}.
 - For input fields, validation type = "input". For buttons/links, "click". For dropdowns, "change".
-
+- If the requested action absolutely cannot be found on the screen, return a single step with action type "modal", title "Action Not Found", and a description explicitly stating that you cannot locate the requested element (do NOT hallucinate a target).
 Return ONLY valid JSON matching this schema:
 {
   "tutorial": {
