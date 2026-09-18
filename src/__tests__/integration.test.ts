@@ -88,9 +88,34 @@ describe("GuideMe Backend QA Integration Tests", () => {
   });
 
   describe("3. Khmer & English Voice TTS Endpoint", () => {
-    it("POST /api/tts/synthesize should synthesize audio / return SSML", async () => {
+    // TTS is a PRO-only feature per the approved revenue model ("Khmer
+    // Voice Coach (TTS)" is a PRO unlock, FREE gets none) — register+login
+    // a dedicated user and upgrade it to PRO for this block, rather than
+    // depending on section 4's ordering.
+    let ttsAuthToken = "";
+
+    beforeAll(async () => {
+      const ttsUser = {
+        name: "TTS QA Tester",
+        email: `qa_tts_${Date.now()}@guideme.app`,
+        password: "Password123!",
+      };
+      await request(app).post("/api/auth/register").send(ttsUser);
+      const loginRes = await request(app).post("/api/auth/login").send({
+        email: ttsUser.email,
+        password: ttsUser.password,
+      });
+      ttsAuthToken = loginRes.body?.token || "";
+      await request(app)
+        .post("/api/billing/change-plan")
+        .set("Authorization", `Bearer ${ttsAuthToken}`)
+        .send({ plan: "PRO" });
+    });
+
+    it("POST /api/tts/synthesize should synthesize audio / return SSML for a PRO user", async () => {
       const res = await request(app)
         .post("/api/tts/synthesize")
+        .set("Authorization", `Bearer ${ttsAuthToken}`)
         .send({ text: "សូមស្វាគមន៍", language: "km", speed: "normal" });
 
       expect(res.status).toBe(200);
@@ -99,10 +124,39 @@ describe("GuideMe Backend QA Integration Tests", () => {
       expect(res.body.provider).toBeDefined();
     });
 
-    it("POST /api/tts/synthesize with missing text should return 400 validation error", async () => {
-      const res = await request(app).post("/api/tts/synthesize").send({});
+    it("POST /api/tts/synthesize with missing text should return 400 validation error for a PRO user", async () => {
+      const res = await request(app)
+        .post("/api/tts/synthesize")
+        .set("Authorization", `Bearer ${ttsAuthToken}`)
+        .send({});
       expect(res.status).toBe(400);
       expect(res.body.error).toBeDefined();
+    });
+
+    it("POST /api/tts/synthesize should return 403 for a FREE user", async () => {
+      const freeUser = {
+        name: "TTS Free Tester",
+        email: `qa_tts_free_${Date.now()}@guideme.app`,
+        password: "Password123!",
+      };
+      await request(app).post("/api/auth/register").send(freeUser);
+      const loginRes = await request(app).post("/api/auth/login").send({
+        email: freeUser.email,
+        password: freeUser.password,
+      });
+      const res = await request(app)
+        .post("/api/tts/synthesize")
+        .set("Authorization", `Bearer ${loginRes.body?.token}`)
+        .send({ text: "hello", language: "en" });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe("PRO_REQUIRED");
+    });
+
+    it("POST /api/tts/synthesize without auth should return 401", async () => {
+      const res = await request(app)
+        .post("/api/tts/synthesize")
+        .send({ text: "hello", language: "en" });
+      expect(res.status).toBe(401);
     });
   });
 
