@@ -50,7 +50,9 @@ router.get("/history", ctrl.getBillingHistory);
  * /api/billing/change-plan:
  *   post:
  *     tags: [Billing]
- *     summary: Upgrade or downgrade plan
+ *     summary: Self-serve upgrade to PRO or downgrade to FREE. Business
+ *       (ENTERPRISE) is sales-assisted only — see /api/support/sales-lead
+ *       and the admin-only /api/admin/users/:userId/plan endpoint.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -61,13 +63,13 @@ router.get("/history", ctrl.getBillingHistory);
  *             type: object
  *             required: [plan]
  *             properties:
- *               plan: { type: string, enum: [FREE, PRO, ENTERPRISE] }
+ *               plan: { type: string, enum: [FREE, PRO] }
  *     responses:
  *       200:
  *         description: Plan changed
  */
 router.post("/change-plan", [
-  body("plan").isIn(["FREE", "PRO", "ENTERPRISE"]),
+  body("plan").isIn(["FREE", "PRO"]),
   validate,
 ], ctrl.changePlan);
 
