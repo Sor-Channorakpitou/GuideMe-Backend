@@ -59,6 +59,7 @@ export async function createGuide(data: {
   description: string;
   category: string;
   steps: GuideStep[];
+  authorId: string;
 }) {
   return prisma.guide.create({
     data: {
@@ -66,8 +67,33 @@ export async function createGuide(data: {
       description: data.description,
       category: data.category,
       steps: data.steps as any,
+      authorId: data.authorId,
     },
   });
+}
+
+/**
+ * Throws a 403 unless `requesterId` is the guide's author, or `isAdmin` is
+ * true. A guide with no author (authorId === null — pre-existing/seeded
+ * catalog entries) can only be modified by an admin. Previously any
+ * authenticated user could update/delete any guide by id with no ownership
+ * check at all.
+ */
+async function assertCanModifyGuide(guideId: string, requesterId: string, isAdmin: boolean) {
+  if (isAdmin) return;
+  const guide = await prisma.guide.findUnique({ where: { id: guideId }, select: { authorId: true } });
+  if (!guide) {
+    const error: any = new Error("Guide not found");
+    error.statusCode = 404;
+    error.code = "NOT_FOUND";
+    throw error;
+  }
+  if (guide.authorId !== requesterId) {
+    const error: any = new Error("You don't have permission to modify this guide");
+    error.statusCode = 403;
+    error.code = "FORBIDDEN";
+    throw error;
+  }
 }
 
 export async function updateGuide(
@@ -77,8 +103,11 @@ export async function updateGuide(
     description?: string;
     category?: string;
     steps?: GuideStep[];
-  }
+  },
+  requesterId: string,
+  isAdmin: boolean
 ) {
+  await assertCanModifyGuide(guideId, requesterId, isAdmin);
   return prisma.guide.update({
     where: { id: guideId },
     data: {
@@ -90,7 +119,8 @@ export async function updateGuide(
   });
 }
 
-export async function deleteGuide(guideId: string) {
+export async function deleteGuide(guideId: string, requesterId: string, isAdmin: boolean) {
+  await assertCanModifyGuide(guideId, requesterId, isAdmin);
   await prisma.guide.delete({
     where: { id: guideId },
   });
