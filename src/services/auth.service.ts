@@ -5,7 +5,7 @@ import { env } from "../config/env.js";
 import { sendPasswordResetEmail } from "./email.js";
 
 export function signToken(userId: string): string {
-  return jwt.sign({ userId }, env.JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign({ userId, type: "access" }, env.JWT_SECRET, { expiresIn: "7d" });
 }
 
 export async function registerUser(data: { name: string; email: string; password?: string }) {
@@ -149,17 +149,24 @@ export async function authenticateFacebookUser(accessToken: string) {
 export async function requestPasswordReset(email: string) {
   const user = await prisma.user.findUnique({ where: { email } });
   if (user) {
-    const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, { expiresIn: "15m" });
+    const token = jwt.sign({ userId: user.id, type: "reset" }, env.JWT_SECRET, { expiresIn: "15m" });
     await sendPasswordResetEmail(email, token);
   }
   return { message: "If the email exists, a reset link has been sent" };
 }
 
 export async function resetUserPassword(token: string, newPassword: string) {
-  let decoded: { userId: string };
+  let decoded: { userId: string; type?: string };
   try {
-    decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string };
+    decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string; type?: string };
   } catch {
+    const error: any = new Error("Invalid or expired reset token");
+    error.statusCode = 400;
+    error.code = "INVALID_TOKEN";
+    throw error;
+  }
+
+  if (decoded.type !== "reset") {
     const error: any = new Error("Invalid or expired reset token");
     error.statusCode = 400;
     error.code = "INVALID_TOKEN";

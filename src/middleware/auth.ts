@@ -33,7 +33,13 @@ export function auth(req: AuthRequest, res: Response, next: NextFunction): void 
   }
 
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string; type?: string };
+    // Reject password-reset tokens (and any other non-session token type) from
+    // being used as a general session credential — see GM-003.
+    if (decoded.type && decoded.type !== "access") {
+      res.status(401).json({ error: { message: "Invalid token", code: "UNAUTHORIZED" } });
+      return;
+    }
     req.userId = decoded.userId;
     next();
   } catch {

@@ -16,4 +16,11 @@ export const env = {
   API_URL: process.env.API_URL || "http://localhost:4000",
   RESEND_API_KEY: process.env.RESEND_API_KEY || "",
   CONTACT_EMAIL: process.env.CONTACT_EMAIL || "guideme.cadt@gmail.com",
+
+  // Shared secret used to verify the HMAC signature Bakong sends on payment
+  // webhook callbacks (see routes/index.ts + middleware/verifyWebhookSignature.ts).
+  // Must be set to a real value before the Bakong integration goes live —
+  // left blank, the webhook route rejects every request rather than trusting
+  // an unsigned payload.
+  BAKONG_WEBHOOK_SECRET: process.env.BAKONG_WEBHOOK_SECRET || "",
 };
