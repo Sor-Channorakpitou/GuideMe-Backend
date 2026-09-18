@@ -44,6 +44,13 @@ model User {
   // AI usage tracking
   aiRequestsCount  Int       @default(0)
   lastAiRequestAt  DateTime?
+  // Lifetime (not daily) trial counter for FREE-plan users — per the
+  // approved revenue model, FREE gets pre-built guides only, no AI chat/
+  // dynamic guidance/voice. This gives a FREE user a small number of
+  // one-time tries of the AI feature before requiring PRO, separate from
+  // aiRequestsCount's daily-reset quota (which still applies to PRO/
+  // ENTERPRISE's volume limits).
+  aiTrialUsed      Int       @default(0)
 
   notificationSettings NotificationSetting?
   appSettings          AppSetting?

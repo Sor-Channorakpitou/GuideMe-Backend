@@ -284,6 +284,30 @@ export function disambiguateAndHardenSteps(
 }
 
 /**
+ * Picks a reasonable "first step" element from the harvested DOM candidates
+ * when the LLM produced nothing usable. Excludes destructive/navigate-away
+ * elements (home/logo/brand links that leave the page, delete/logout/remove
+ * actions) and prefers file/menu/share/action/edit-flavored controls — used
+ * both by the primary no-steps-at-all fallback and the last-resort
+ * Zod-failure fallback (GM-021), which previously bypassed this filtering
+ * entirely and could hand a user `candidates[0]` verbatim — whatever
+ * happened to be harvested first, with no guarantee it wasn't something
+ * destructive.
+ */
+function pickSafeFallbackElement(candidates: DomCandidate[]): DomCandidate {
+  const isUnsafe = (c: DomCandidate) =>
+    /docs-homescreen|home|logo|brand|delete|remove|logout|sign[\s-]?out|trash|discard/i.test(
+      c.ariaLabel || c.selector || c.text || ''
+    );
+  const pool = candidates.filter((c) => !isUnsafe(c));
+  const candidatesPool = pool.length > 0 ? pool : candidates;
+  return (
+    candidatesPool.find((c) => /file|menu|share|action|edit/i.test(c.text || c.ariaLabel || '')) ||
+    candidatesPool[0]
+  );
+}
+
+/**
  * Validates, hardens, and repairs an AI-generated tutorial response using strict Zod schemas
  * and real interactive DOM candidates.
  */
@@ -319,10 +343,7 @@ export function hardenAndValidateTutorial(
 
   // If no valid steps after disambiguation, construct safe baseline steps from candidates
   if (steps.length === 0 && candidates.length > 0) {
-    // Exclude brand/home navigation icons that navigate away from the current page
-    const pool = candidates.filter((c) => !/docs-homescreen|home|logo|brand/i.test(c.ariaLabel || c.selector || c.text || ''));
-    const candidatesPool = pool.length > 0 ? pool : candidates;
-    const firstElem = candidatesPool.find((c) => /file|menu|share|action|edit/i.test(c.text || c.ariaLabel || '')) || candidatesPool[0];
+    const firstElem = pickSafeFallbackElement(candidates);
     steps = [
       {
         id: "step_1",
@@ -367,8 +388,14 @@ export function hardenAndValidateTutorial(
 
   console.warn("[AI Schema Hardening] Zod validation auto-correcting:", parseResult.error.format());
 
-  // Force-repaired fallback guarantees zero breakdown
-  return {
+  // Force-repaired fallback — GM-021/022: previously used `candidates[0]`
+  // verbatim (no relevance filtering — could be a delete/logout/navigate-away
+  // element) and returned it WITHOUT re-validating through Zod, despite the
+  // function's return type promising a Zod-validated ValidatedTutorial. Now
+  // reuses the same safe-element picker as the primary fallback above, and
+  // re-parses the repaired payload so the type contract actually holds.
+  const fallbackElem = candidates.length > 0 ? pickSafeFallbackElement(candidates) : null;
+  const repairedPayload = {
     id,
     version,
     name,
@@ -378,19 +405,67 @@ export function hardenAndValidateTutorial(
       {
         id: "step_fallback",
         title: normalizeBilingual(null, "Start Step", "ចាប់ផ្តើម"),
-        target: {
-          css: candidates[0]?.selector || "button, a, input",
-          description: "Default fallback target",
-          alternatives: ["button", "a"],
-        },
+        target: fallbackElem
+          ? {
+              css: fallbackElem.selector,
+              text: fallbackElem.text,
+              ariaLabel: fallbackElem.ariaLabel,
+              testId: fallbackElem.testId,
+              description: `[${fallbackElem.tag.toUpperCase()}] ${fallbackElem.text || fallbackElem.ariaLabel || fallbackElem.selector}`,
+              alternatives: buildSelectorAlternatives(fallbackElem),
+            }
+          : {
+              css: "button, a, input",
+              description: "Default fallback target",
+              alternatives: ["button", "a"],
+            },
         action: {
           type: "spotlight",
           placement: "bottom",
         },
         validation: {
-          type: "click",
+          type: fallbackElem?.tag === "input" ? "input" : "click",
         },
       },
     ],
   };
+
+  const repairedParse = TutorialSchema.safeParse(repairedPayload);
+  if (repairedParse.success) {
+    return repairedParse.data;
+  }
+
+  // Even the repaired payload didn't pass Zod (should be rare — e.g. no
+  // candidates were harvested at all). Fall back to a minimal, guaranteed-
+  // valid "couldn't build a guide" stub rather than returning unvalidated
+  // data under a type that claims it's been validated.
+  console.error("[AI Schema Hardening] Repaired fallback still failed Zod validation:", repairedParse.error.format());
+  return TutorialSchema.parse({
+    id,
+    version,
+    name,
+    description,
+    matchUrls,
+    steps: [
+      {
+        id: "step_unavailable",
+        title: normalizeBilingual(null, "Action Not Found", "រកមិនឃើញសកម្មភាព"),
+        // `target` is required by StepSchema even for a modal-only step with
+        // no real element to point at — "body" is an inert, always-present
+        // placeholder (never actually spotlighted since the UI branches on
+        // action.type === "modal" first).
+        target: { css: "body", description: "No target available", alternatives: [] },
+        action: {
+          type: "modal",
+          placement: "bottom",
+          content: normalizeBilingual(
+            null,
+            "Sorry, I couldn't find how to do this on the current page.",
+            "សូមទោស ខ្ញុំរកមិនឃើញវិធីធ្វើវានៅលើទំព័រនេះទេ។"
+          ),
+        },
+        validation: { type: "manual_next" },
+      },
+    ],
+  });
 }

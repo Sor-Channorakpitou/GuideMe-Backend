@@ -5,6 +5,8 @@ import {
   getGeminiApiKeys,
   getOrderedGeminiApiKeys,
   resetGeminiKeyCounter,
+  guideStepsCacheKey,
+  mergeRedundantFocusThenTypeSteps,
 } from "../services/ai.service.js";
 import { synthesizeSpeech } from "../services/tts.service.js";
 import { getFaqList } from "../services/support.service.js";
@@ -85,6 +87,92 @@ describe("GuideMe 4-Layer Service Tests", () => {
         process.env.GEMINI_API_KEY_2 = originalKey2;
         resetGeminiKeyCounter();
       }
+    });
+
+    it("should hash guide-step cache keys deterministically regardless of key order", () => {
+      const a = guideStepsCacheKey({
+        prompt: "Share this document",
+        language: "km",
+        elements: [{ tag: "button", id: "share-btn", text: "Share" }],
+      });
+      const b = guideStepsCacheKey({
+        elements: [{ text: "Share", id: "share-btn", tag: "button" }],
+        language: "km",
+        prompt: "Share this document",
+      });
+      expect(a).toBe(b);
+      expect(a).toHaveLength(64); // sha256 hex digest
+    });
+
+    it("should produce different guide-step cache keys for different DOM snapshots", () => {
+      const a = guideStepsCacheKey({
+        prompt: "Share this document",
+        elements: [{ tag: "button", id: "share-btn", text: "Share" }],
+      });
+      const b = guideStepsCacheKey({
+        prompt: "Share this document",
+        elements: [{ tag: "button", id: "different-btn", text: "Share" }],
+      });
+      expect(a).not.toBe(b);
+    });
+
+    it("should merge a click-to-focus step immediately followed by a type-into-it step on the same target", () => {
+      const steps = [
+        {
+          id: "step-1",
+          title: "Select the formula box",
+          target: { css: "div.cell-input", text: "" },
+          validation: { type: "click" },
+        },
+        {
+          id: "step-2",
+          title: "Type the SUM formula",
+          target: { css: "div.cell-input", text: "" },
+          validation: { type: "input" },
+        },
+      ];
+      const merged = mergeRedundantFocusThenTypeSteps(steps);
+      expect(merged).toHaveLength(1);
+      expect(merged[0].title).toBe("Type the SUM formula");
+      expect(merged[0].id).toBe("step-1");
+    });
+
+    it("should NOT merge steps with different targets", () => {
+      const steps = [
+        {
+          id: "step-1",
+          title: "Click File menu",
+          target: { css: "#file-menu", text: "File" },
+          validation: { type: "click" },
+        },
+        {
+          id: "step-2",
+          title: "Type the file name",
+          target: { css: "#filename-input", text: "" },
+          validation: { type: "input" },
+        },
+      ];
+      const merged = mergeRedundantFocusThenTypeSteps(steps);
+      expect(merged).toHaveLength(2);
+    });
+
+    it("should NOT merge two click steps on the same target (not a focus-then-type pair)", () => {
+      const steps = [
+        {
+          id: "step-1",
+          title: "Open the menu",
+          target: { css: "#menu", text: "" },
+          validation: { type: "click" },
+        },
+        {
+          id: "step-2",
+          title: "Open the menu again",
+          target: { css: "#menu", text: "" },
+          validation: { type: "click" },
+        },
+      ];
+      const merged = mergeRedundantFocusThenTypeSteps(steps);
+      expect(merged).toHaveLength(2);
     });
   });
 

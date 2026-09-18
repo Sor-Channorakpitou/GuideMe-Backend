@@ -5,8 +5,17 @@ interface AppError extends Error {
   code?: string;
 }
 
-export function errorHandler(err: AppError, _req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(err: AppError, _req: Request, res: Response, next: NextFunction): void {
   console.error("[ERROR]", err.message, err.stack?.split("\n")[1] || "");
+
+  // A response that already started sending (e.g. an SSE stream whose
+  // res.write/res.end threw after headers were flushed) can't have its
+  // status/headers set again — doing so throws ERR_HTTP_HEADERS_SENT.
+  // Delegate to Express's default handler, which just closes the connection.
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
 
   const statusCode = err.statusCode || 500;
   const code = err.code || (statusCode === 500 ? "INTERNAL_ERROR" : "REQUEST_ERROR");

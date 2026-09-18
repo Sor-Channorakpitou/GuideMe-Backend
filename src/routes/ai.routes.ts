@@ -2,6 +2,7 @@ import { Router } from "express";
 import { body } from "express-validator";
 import { auth } from "../middleware/auth.js";
 import { aiRateLimit } from "../middleware/aiRateLimit.js";
+import { requireProOrTrial } from "../middleware/requireProOrTrial.js";
 import { validate } from "../middleware/validate.js";
 import * as aiCtrl from "../controllers/ai.controller.js";
 
@@ -11,6 +12,7 @@ const router = Router();
 router.post(
   "/generate-guide",
   auth,
+  requireProOrTrial,
   aiRateLimit,
   [
     body("prompt").isString().trim().notEmpty(),
@@ -25,6 +27,7 @@ router.post(
 router.post(
   "/assistant-chat",
   auth,
+  requireProOrTrial,
   aiRateLimit,
   [
     body("question").isString().trim().notEmpty(),
@@ -39,9 +42,12 @@ router.post(
 // ── Stage 1: Intent Validation (validates prompt & plans multi-page flow) ──
 router.post(
   "/validate-intent",
+  auth,
+  requireProOrTrial,
+  aiRateLimit,
   [
-    body("prompt").isString().trim().notEmpty(),
-    body("currentUrl").optional().isString(),
+    body("prompt").isString().trim().notEmpty().isLength({ max: 4000 }),
+    body("currentUrl").optional().isString().isLength({ max: 2000 }),
     body("language").optional().isIn(["km", "en"]),
     validate,
   ],
@@ -51,9 +57,12 @@ router.post(
 // ── Two-Stage Intent Candidate Re-Ranking (Extension API Client Endpoint) ──
 router.post(
   "/intent-rerank",
+  auth,
+  requireProOrTrial,
+  aiRateLimit,
   [
-    body("prompt").isString().trim().notEmpty(),
-    body("candidates").isArray({ min: 1 }),
+    body("prompt").isString().trim().notEmpty().isLength({ max: 4000 }),
+    body("candidates").isArray({ min: 1, max: 50 }),
     validate,
   ],
   aiCtrl.rerankIntentCandidates
@@ -62,10 +71,13 @@ router.post(
 // ── Live DOM Candidate Walkthrough Synthesizer (Extension AI Agent Endpoint) ──
 router.post(
   "/dom-guide",
+  auth,
+  requireProOrTrial,
+  aiRateLimit,
   [
-    body("prompt").isString().trim().notEmpty(),
-    body("elements").isArray({ min: 1 }),
-    body("url").optional().isString(),
+    body("prompt").isString().trim().notEmpty().isLength({ max: 4000 }),
+    body("elements").isArray({ min: 1, max: 400 }),
+    body("url").optional().isString().isLength({ max: 2000 }),
     body("language").optional().isIn(["km", "en"]),
     validate,
   ],
@@ -75,13 +87,17 @@ router.post(
 // ── Stage 2: Step Generation from DOM Elements ──
 router.post(
   "/generate-steps",
+  auth,
+  requireProOrTrial,
+  aiRateLimit,
   [
-    body("prompt").isString().trim().notEmpty(),
-    body("elements").isArray({ min: 1 }),
+    body("prompt").isString().trim().notEmpty().isLength({ max: 4000 }),
+    body("elements").isArray({ min: 1, max: 400 }),
     body("language").optional().isIn(["km", "en"]),
-    body("currentUrl").optional().isString(),
+    body("currentUrl").optional().isString().isLength({ max: 2000 }),
     body("mode").optional().isIn(["initial", "next_action"]),
-    body("completedActions").optional().isArray(),
+    body("completedActions").optional().isArray({ max: 100 }),
+    body("intent").optional({ nullable: true }).isObject(),
     validate,
   ],
   aiCtrl.generateSteps
