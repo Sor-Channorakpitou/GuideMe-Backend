@@ -2,6 +2,7 @@ import { Router } from "express";
 import { body } from "express-validator";
 import { validate } from "../middleware/validate.js";
 import { auth } from "../middleware/auth.js";
+import { authRateLimit } from "../middleware/authRateLimit.js";
 import * as ctrl from "../controllers/auth.controller.js";
 
 const router = Router();
@@ -38,7 +39,7 @@ const router = Router();
  *             schema:
  *               $ref: "#/components/schemas/Error"
  */
-router.post("/register", [
+router.post("/register", authRateLimit, [
   body("email").isEmail(),
   body("password").isLength({ min: 6 }),
   body("name").notEmpty(),
@@ -73,7 +74,7 @@ router.post("/register", [
  *       401:
  *         description: Invalid credentials
  */
-router.post("/login", [
+router.post("/login", authRateLimit, [
   body("email").isEmail(),
   body("password").notEmpty(),
   body("rememberMe").optional().isBoolean(),
@@ -157,7 +158,7 @@ router.post("/google", [
  *       200:
  *         description: Reset email sent (if account exists)
  */
-router.post("/forgot-password", [
+router.post("/forgot-password", authRateLimit, [
   body("email").isEmail(),
   validate,
 ], ctrl.forgotPassword);
@@ -184,7 +185,7 @@ router.post("/forgot-password", [
  *       400:
  *         description: Invalid or expired token
  */
-router.post("/reset-password", [
+router.post("/reset-password", authRateLimit, [
   body("token").notEmpty(),
   body("password").isLength({ min: 6 }),
   validate,

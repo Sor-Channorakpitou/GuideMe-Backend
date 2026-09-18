@@ -43,6 +43,38 @@ router.post("/contact", [
 
 /**
  * @openapi
+ * /api/support/sales-lead:
+ *   post:
+ *     tags: [Support]
+ *     summary: Submit a Business (Enterprise) plan sales inquiry (no auth required).
+ *       Creates a support ticket tagged "sales" and emails the team — Business
+ *       plan upgrades are sales-assisted, not self-serve (see /api/billing/change-plan).
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, message]
+ *             properties:
+ *               name:    { type: string }
+ *               email:   { type: string }
+ *               company: { type: string }
+ *               message: { type: string }
+ *     responses:
+ *       201:
+ *         description: Lead submitted
+ */
+router.post("/sales-lead", [
+  body("name").notEmpty(),
+  body("email").isEmail(),
+  body("company").optional(),
+  body("message").notEmpty(),
+  validate,
+], ctrl.submitSalesLead);
+
+/**
+ * @openapi
  * /api/support/faq:
  *   get:
  *     tags: [Support]

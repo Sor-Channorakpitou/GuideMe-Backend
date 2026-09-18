@@ -17,6 +17,17 @@ export async function getBillingHistory(userId: string) {
   });
 }
 
+// Shared upgrade/downgrade logic used by two different callers with two
+// different trust levels:
+//   - The self-serve /api/billing/change-plan route (billing.routes.ts) only
+//     ever allows "FREE" or "PRO" here — ENTERPRISE is rejected by that
+//     route's own validator before a request body can reach this function.
+//     PRO's "payment" is still mocked (no real Stripe/PayPal/Bakong charge
+//     occurs) — an intentional, documented product decision for now, not an
+//     oversight.
+//   - The admin-only PATCH /api/admin/users/:userId/plan route (requires
+//     adminAuth) can set ANY plan, including ENTERPRISE, after a Business
+//     sales deal closes — see billing.controller.ts's adminSetPlan.
 export async function changePlan(userId: string, plan: "FREE" | "PRO" | "ENTERPRISE") {
   const billing = await prisma.billing.upsert({
     where: { userId },
@@ -77,7 +88,7 @@ export async function confirmStripePayment(userId: string) {
       data: {
         userId,
         plan: billing.plan,
-        amount: billing.plan === "PRO" ? 9 : 29,
+        amount: billing.plan === "PRO" ? 2.99 : 29,
         status: "paid",
       },
     });
@@ -92,7 +103,7 @@ export async function capturePayPalPayment(userId: string) {
       data: {
         userId,
         plan: billing.plan,
-        amount: billing.plan === "PRO" ? 9 : 29,
+        amount: billing.plan === "PRO" ? 2.99 : 29,
         status: "paid",
       },
     });

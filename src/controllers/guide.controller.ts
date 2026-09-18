@@ -1,6 +1,12 @@
 import { Response, NextFunction } from "express";
 import { AuthRequest } from "../middleware/auth.js";
 import * as guideService from "../services/guide.service.js";
+import prisma from "../config/db.js";
+
+async function isAdminUser(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  return user?.role === "ADMIN";
+}
 
 export async function getGuides(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -29,7 +35,7 @@ export async function getGuide(req: AuthRequest, res: Response, next: NextFuncti
 export async function createGuide(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { title, description, category, steps } = req.body;
-    const guide = await guideService.createGuide({ title, description, category, steps });
+    const guide = await guideService.createGuide({ title, description, category, steps, authorId: req.userId! });
     res.status(201).json(guide);
   } catch (err) {
     next(err);
@@ -40,7 +46,8 @@ export async function updateGuide(req: AuthRequest, res: Response, next: NextFun
   try {
     const guideId = req.params.id as string;
     const { title, description, category, steps } = req.body;
-    const guide = await guideService.updateGuide(guideId, { title, description, category, steps });
+    const isAdmin = await isAdminUser(req.userId!);
+    const guide = await guideService.updateGuide(guideId, { title, description, category, steps }, req.userId!, isAdmin);
     res.json(guide);
   } catch (err) {
     next(err);
@@ -50,7 +57,8 @@ export async function updateGuide(req: AuthRequest, res: Response, next: NextFun
 export async function deleteGuide(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const guideId = req.params.id as string;
-    const result = await guideService.deleteGuide(guideId);
+    const isAdmin = await isAdminUser(req.userId!);
+    const result = await guideService.deleteGuide(guideId, req.userId!, isAdmin);
     res.json(result);
   } catch (err) {
     next(err);

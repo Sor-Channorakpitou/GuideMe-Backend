@@ -16,4 +16,29 @@ export const env = {
   API_URL: process.env.API_URL || "http://localhost:4000",
   RESEND_API_KEY: process.env.RESEND_API_KEY || "",
   CONTACT_EMAIL: process.env.CONTACT_EMAIL || "guideme.cadt@gmail.com",
+
+  // Shared secret used to verify the HMAC signature Bakong sends on payment
+  // webhook callbacks (see routes/index.ts + middleware/verifyWebhookSignature.ts).
+  // Must be set to a real value before the Bakong integration goes live —
+  // left blank, the webhook route rejects every request rather than trusting
+  // an unsigned payload.
+  BAKONG_WEBHOOK_SECRET: process.env.BAKONG_WEBHOOK_SECRET || "",
+
+  // ── Redis ──────────────────────────────────────────────────────────────────
+  // Format: redis://:password@host:6379  or  rediss://... for TLS
+  REDIS_URL: process.env.REDIS_URL || "",
+  REDIS_DISABLED: process.env.REDIS_DISABLED === "true",
+
+  // ── S3 / Cloudflare R2 — Audio CDN ────────────────────────────────────────
+  // Leave blank to fall back to local-disk storage (development mode).
+  S3_BUCKET: process.env.S3_BUCKET || "",
+  S3_REGION: process.env.S3_REGION || "auto",
+  S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID || "",
+  S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY || "",
+  // Cloudflare R2 endpoint, e.g. https://<accountid>.r2.cloudflarestorage.com
+  // Leave empty to use standard AWS S3.
+  S3_ENDPOINT: process.env.S3_ENDPOINT || "",
+  // Public CDN base URL for generated audio files, e.g. https://cdn.guideme.app
+  // Falls back to direct S3/R2 URL when unset.
+  CDN_BASE_URL: process.env.CDN_BASE_URL || "",
 };
